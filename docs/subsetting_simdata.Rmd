@@ -165,17 +165,46 @@ run_sequoia<-function(gt.name,start.col=4,...){
   assigned.moms<-seq$PedigreePar[!is.na(seq$PedigreePar$dam),]
   compare.moms<-merge(known,assigned.moms,by.x="ID",by.y="id")
   prop.corr.mom<-nrow(compare.moms[compare.moms$Mom==compare.moms$dam,])/nrow(known)
+  num.wrong.mom<-nrow(compare.moms[compare.moms$Mom!=compare.moms$dam,])
   
   #how many dads are correctly assigned?
   assigned.dads<-seq$PedigreePar[!is.na(seq$PedigreePar$sire),]
   compare.dads<-merge(known,assigned.dads,by.x="ID",by.y="id")
   prop.corr.dad<-nrow(compare.dads[compare.dads$Dad==compare.dads$sire,])/nrow(known)
-  return(list=c(output=seq,data.frame(File=gt.name,NumMomsAssigned=nrow(assigned.moms),NumDadsAssigned=nrow(assigned.dads),
-                PropMomsCorrect=prop.corr.mom,PropDadsCorrect=prop.corr.dad)))
+  num.wrong.dad<-nrow(compare.dads[compare.dads$Dad!=compare.dads$sire,])
+  
+  if("MaybeParent" %in% names(seq)){
+    #how many maybe-moms are correct?
+    maybe.moms<-seq$MaybeParent[seq$MaybeParent$Sex2==1,]
+    compare.maybe.moms<-merge(known,maybe.moms,by.x="ID",by.y="ID1")
+    prop.corr.maybe.mom<-nrow(compare.maybe.moms[compare.maybe.moms$Mom==compare.maybe.moms$ID2,])/nrow(known)
+    n.mmom<-nrow(maybe.moms)
+    num.wrong.mmom<-nrow(compare.maybe.moms[compare.maybe.moms$Mom!=compare.maybe.moms$ID2,])
+    
+    #how many maybe-dads are correct?
+    maybe.dads<-seq$MaybeParent[seq$MaybeParent$Sex2==2,]
+    compare.maybe.dads<-merge(known,maybe.dads,by.x="ID",by.y="ID1")
+    prop.corr.maybe.dad<-nrow(compare.maybe.dads[compare.maybe.dads$Dad==compare.maybe.dads$ID2,])/nrow(known)
+    n.mdad<-nrow(maybe.dads)
+    num.wrong.mdad<-nrow(compare.maybe.dads[compare.maybe.dads$Dad!=compare.maybe.dads$ID2,])
+  } else{
+    num.wrong.mdad<-num.wrong.mmom<-n.mmom<-n.mdad<-0
+    prop.corr.maybe.mom<-prop.corr.maybe.dad<-0
+  }
+  #how many maybe parents?
+  return(data.frame(File=gt.name,NumMomsAssigned=nrow(assigned.moms),NumDadsAssigned=nrow(assigned.dads),
+                    NumMomsIncorrect=num.wrong.mom,NumDadsIncorrect=num.wrong.dad,
+                    NumMaybeMoms=n.mmom,NumMaybeDads=n.mdad,
+                    NumMaybeMomsIncorrect=num.wrong.mmom,NumMaybeDadsIncorrect=num.wrong.mdad,
+                    PropMomsCorrect=prop.corr.mom,PropDadsCorrect=prop.corr.dad,
+                    PropMaybeMomsCorrect=prop.corr.maybe.mom,PropMaybeDadsCorrect=prop.corr.maybe.dad,
+                    PropMomsCorrectTotal=prop.corr.mom+prop.corr.maybe.mom,
+                    PropDadsCorrectTotal=prop.corr.dad+prop.corr.maybe.dad))
 }
 
 gty.files<-list.files(pattern="genotypes.txt")
-SeqOut<-lapply(gty.files,run_sequoia,MaxSibIter=0,MaxSibshipSize = 200)
+SequoiaStats<-do.call(rbind,lapply(gty.files,run_sequoia,MaxSibIter=0,MaxSibshipSize = 200))
+write.csv(SequoiaStats,"SequoiaStats.csv")
 ```
 
 
