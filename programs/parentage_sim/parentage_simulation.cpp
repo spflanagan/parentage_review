@@ -7,6 +7,7 @@
 #include <iostream>
 #include <fstream>
 #include <cmath>
+#include <time.h>
 #include "random_numbers.h"
 
 using namespace std;
@@ -86,6 +87,31 @@ vector<int> errors(vector<int>& alleles, int alleleA, int alleleB, double alleli
 	return out_allele;
 }
 
+int numDigits(int number)
+{
+	int digits = 0;
+	
+	while (number) {
+		number /= 10;
+		digits++;
+	}
+	return digits;
+}
+
+string determine_id(string base, int id, int max_digits)
+{
+	string out_name = base;
+	int digits = numDigits(id);
+	if (digits < max_digits)
+	{
+		for (int j = digits; j < max_digits; j++)
+			out_name = out_name + "0";
+	}
+	if(id > 0)
+		out_name = out_name + to_string(id);
+	return out_name;
+}
+
 void help_message()
 {
 	cout << "\n\t\tHelp Menu for ParentageSim\n";
@@ -98,8 +124,7 @@ void help_message()
 	cout << "-L:\tnumber of loci (10)\n";
 	cout << "-x:\tmaximum number of mates per male (5)\n";
 	cout << "-f:\tfecundity, aka number of offspring produced per mating (4)\n";
-	cout << "-d:\tdirectory for output -- this is the full path to include in .crv file and should correspond to the relative directory\n";
-	cout << "-r:\trelative directory for output -- this is the relative path to output files to, important for windows/linux compatibility (default of ../../results/)\n";
+	cout << "-d:\trelative directory for output -- this is the relative path to output files to, important for windows/linux compatibility (default of ../../results/)\n";
 	cout << "-m:\tNumber of microsatellites to simulate (10)\n";
 	cout << "-ad:\tSNP Allelic dropout rate (0)\n";
 	cout << "-se:\tSNP scoring error rate (0)\n";
@@ -109,13 +134,15 @@ void help_message()
 int main(int argc, char*argv[])
 {
 	int i, ii, iii, num_snps,num_loci, num_males, num_females, mate, max_num_mates, fecundity, num_offspring;
-	int num_microsats, microsat_nalleles;
+	int num_microsats, microsat_nalleles, maxn_digits;
 	double prop_moms_sampled = 0.05;
 	double allelic_dropout_prob, scoring_error_prob;
 	vector<individual> males, females;
 	string base_name = "simulated";
-	string genotype_name, offspring_name, candmoms_name, canddads_name, crv_name,dir,rel_dir;
-	ofstream genotypes,offspring,cand_males,cand_females,crv;
+	string genotype_name, offspring_name, candmoms_name, canddads_name, dir, id,microsats_name;
+	ofstream genotypes,offspring,cand_males,cand_females,microsats;
+
+	sgenrand(time(0));
 
 	//default settings
 	microsat_nalleles = num_microsats = 10;
@@ -127,7 +154,6 @@ int main(int argc, char*argv[])
 	fecundity = 4;
 	allelic_dropout_prob = scoring_error_prob = 0;
 	dir = "../../results/";
-	rel_dir = "../../results/";
 	//read in parameters
 	string tempstring1, tempstring2;
 	if (argc == 1)
@@ -166,8 +192,6 @@ int main(int argc, char*argv[])
 					num_loci = atoi(tempstring2.c_str());
 				if (tempstring1 == "-d")
 					dir = tempstring2;
-				if (tempstring1 == "-r")
-					rel_dir = tempstring2;
 				if (tempstring1 == "-m")
 					num_microsats = atoi(tempstring2.c_str());
 				if (tempstring1 == "-ad")
@@ -197,15 +221,19 @@ int main(int argc, char*argv[])
 			alleles[num_loci + i].push_back(ii + 1);
 	}
 	//initialize adults
-	genotype_name = rel_dir + base_name + "_genotypes.txt";
+	maxn_digits = numDigits(num_females*fecundity);
+	microsats_name = dir + base_name + "_microsatellites.txt";
+	microsats.open(microsats_name);
+	microsats << "ID\tMom\tDad";
+	for (i = 0; i < num_microsats; i++)
+		microsats << "\tMSAT" << i <<"a" << "\tMSAT" << i << "b";
+	genotype_name = dir + base_name + "_genotypes.txt";
 	genotypes.open(genotype_name);
 	genotypes << "ID\tMom\tDad";
 	for (i = 0; i < num_loci; i++)
-		genotypes << "\tA" << i << "\tB" << i;
-	for (i = 0; i < num_microsats; i++)
-		genotypes << "\tMSATa" << i << "\tMSATb" << i;
-	candmoms_name = rel_dir + base_name + "_candidate_mothers.txt";
-	canddads_name = rel_dir + base_name + "_candidate_fathers.txt";
+		genotypes << "\tSNP" << i <<"a" << "\tSNP" << i << "b";
+	candmoms_name = dir + base_name + "_candidate_mothers.txt";
+	canddads_name = dir + base_name + "_candidate_fathers.txt";
 	cand_females.open(candmoms_name);
 	cand_males.open(canddads_name);
 	vector<int> err_alleles;
@@ -213,8 +241,10 @@ int main(int argc, char*argv[])
 	{
 		males.push_back(individual());
 		males[i].initialize(alleles);
-		cand_males << "MAL" << i << '\n';
-		genotypes << '\n' << "MAL" << i << "\tNA\tNA";
+		id = determine_id("MAL", i, maxn_digits);
+		cand_males <<id << '\n';
+		genotypes << '\n' << id << "\tNA\tNA";
+		microsats << '\n' << id << "\tNA\tNA";
 		for (ii = 0; ii < num_loci; ii++)
 		{
 			err_alleles = errors(alleles[ii], males[i].maternal[ii], males[i].paternal[ii], allelic_dropout_prob, scoring_error_prob);
@@ -222,15 +252,17 @@ int main(int argc, char*argv[])
 		}
 		for (ii = num_loci; ii < num_loci + num_microsats; ii++)
 		{
-			genotypes << '\t' << males[i].maternal[ii] << '\t' << males[i].paternal[ii];
+			microsats << '\t' << males[i].maternal[ii] << '\t' << males[i].paternal[ii];
 		}
 	}
 	for (i = 0; i < num_females; i++)
 	{
 		females.push_back(individual());
 		females[i].initialize(alleles);
-		cand_females << "FEM" << i << '\n';
-		genotypes << '\n' << "FEM" << i << "\tNA\tNA";
+		id = determine_id("FEM", i, maxn_digits);
+		cand_females << id << '\n';
+		genotypes << '\n' << id << "\tNA\tNA";
+		microsats << '\n' << id << "\tNA\tNA";
 		for (ii = 0; ii < num_loci; ii++) 
 		{
 			err_alleles = errors(alleles[ii], females[i].maternal[ii], females[i].paternal[ii], allelic_dropout_prob, scoring_error_prob);
@@ -238,13 +270,13 @@ int main(int argc, char*argv[])
 		}
 		for (ii = num_loci; ii < num_loci+num_microsats; ii++)
 		{
-			genotypes << '\t' << females[i].maternal[ii] << '\t' << females[i].paternal[ii];
+			microsats << '\t' << females[i].maternal[ii] << '\t' << females[i].paternal[ii];
 		}
 	}
 	
 
 	//mating
-	offspring_name = rel_dir + base_name + "_offspring.txt";
+	offspring_name = dir + base_name + "_offspring.txt";
 	offspring.open(offspring_name);
 	offspring << "OffspringID\tMomID\tDadID";	
 	num_offspring = 0;
@@ -259,8 +291,12 @@ int main(int argc, char*argv[])
 			{
 				for (iii = 0; iii < fecundity; iii++)//females mate with one male
 				{									//males can mate multiply
-					genotypes << '\n' << "OFFSPRING" << num_offspring << "\tFEM" << i << "\tMAL" << mate;
-					offspring << '\n' << "OFFSPRING" << num_offspring << "\tFEM" << i << "\tMAL" << mate;
+					id = determine_id("OFF", num_offspring, maxn_digits);
+					string femid = determine_id("FEM", i, maxn_digits);
+					string malid = determine_id("MAL", mate, maxn_digits);
+					microsats << '\n' << id << '\t' << femid << "\t" << malid;
+					genotypes << '\n' <<id << '\t' << femid << "\t" << malid;
+					offspring << '\n' << id << '\t' << femid << "\t" << malid;
 
 					for (ii = 0; ii < num_loci; ii++)
 					{ 
@@ -271,9 +307,9 @@ int main(int argc, char*argv[])
 							mat_allele = females[i].paternal[ii];
 						//from the dad
 						if (genrand() < 0.5)
-							pat_allele = males[i].maternal[ii];
+							pat_allele = males[mate].maternal[ii];
 						else
-							pat_allele = males[i].paternal[ii];
+							pat_allele = males[mate].paternal[ii];
 						err_alleles = errors(alleles[ii], mat_allele, pat_allele, allelic_dropout_prob, scoring_error_prob);
 						genotypes << '\t' << err_alleles[0] << '\t' << err_alleles[1];
 					}
@@ -281,14 +317,14 @@ int main(int argc, char*argv[])
 					{
 						//from the mom
 						if (genrand() < 0.5)
-							genotypes << '\t' << females[i].maternal[ii];
+							microsats << '\t' << females[i].maternal[ii];
 						else
-							genotypes << '\t' << females[i].paternal[ii];
+							microsats << '\t' << females[i].paternal[ii];
 						//from the dad
 						if (genrand() < 0.5)
-							genotypes << '\t' << males[i].maternal[ii];
+							microsats << '\t' << males[mate].maternal[ii];
 						else
-							genotypes << '\t' << males[i].paternal[ii];
+							microsats << '\t' << males[mate].paternal[ii];
 					}
 					num_offspring++;
 					if (num_offspring % 100 == 0)
@@ -301,6 +337,7 @@ int main(int argc, char*argv[])
 		
 	}
 	genotypes.close();
+	microsats.close();
 	offspring.close();
 	cand_females.close();
 	cand_males.close();

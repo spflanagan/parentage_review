@@ -1,0 +1,181 @@
+---
+title: "Subsetting Simulation Output for Parentage Analysis"
+author: "Sarah P. Flanagan"
+date: "May 9, 2018"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_knit$set(root.dir = "../results/")
+```
+```{r}
+library(knitr)
+```
+
+To explore how various parentage analysis programs perform, we are simulating data. We simulate a population of randomly-mating parents, with an equal sex ratio, where females mate singly and males mate up to five times. Every dataset has SNPs (2 alleles) and 10 microsatellites (10 alleles) Here are the parameters of interest:
+
+```{r}
+kable(data.frame(Parameter=c("Number of known parents", "Proportion of candidate parents sampled", "Number of adults","Family size","Number of SNPs","Number of microsatellites","SNP allelic dropout rate", "SNP scoring error rate"),
+      Default=c("1","100%","100","2 offspring per mating","100","10","0%","0%"), 
+      Alternative_Values=c("0","50%, 20%","500, 2500","1, 4","50, 200,500, 1000, 5000","-","2%, 5%","2%, 5%")),row.names = FALSE)
+```
+
+We will analyze the following datasets:
+
+* Dataset 1: One parent is known, 100% of the parents are sampled, 100 adults (50 males, 50 females),2 offspring produced per mating, 100 SNPs.
+* Dataset 2:  Neither parent is known.
+* Dataset 3:  50 percent of parents sampled.
+* Dataset 4:  20 percent of parents sampled.
+* Dataset 5:  500 adults.
+* Dataset 6:  2500 adults.
+* Dataset 7:  1 offspring per mating (always sample all offspring).
+* Dataset 8:  4 offspring per mating (always sample all offspring).
+* Dataset 9:  50 SNPs.
+* Dataset 10: 200 SNPs.
+* Dataset 11: 500 SNPs.
+* Dataset 12: 1000 SNPs.
+* Dataset 13: 5000 SNPs.
+* Dataset 14: Allelic dropout rate at 2%.
+* Dataset 15: Allelic dropout rate at 5%.
+* Dataset 16: Scoring error rate at 2%.
+* Dataset 17: Scoring error rate at 5%. 
+
+To generate these datasets I created 7 datasets from C++, one of which will be subset so subsample for the percentage of adults, the number of offspring per mating, one or no parents known, and the number of SNPs.
+
+## Subsetting the data
+
+All of the data are output from the C++ program in CERVUS format. First I need to take the large dataset, with the base name `parentsim_F100f4S5000`, and subset it to contain subsets of the parents, offspring, and SNPs.
+
+```{r}
+base<-read.delim("parentsim_F100f4S5000_genotypes.txt")
+base.msats<-read.delim("parentsim_F100f4S5000_microsatellites.txt")
+base[1:5,1:10]
+```
+
+The genotype data has three initial columns: the individual ID, the mother's ID, and the father's ID (if known). The remaining columns are the genotypes, 2 per locus. The final 10 loci (20 columns) are the microsatellites, and have columnames MSATa1...
+
+### Subsample SNPs
+
+First, let's choose two offspring per mating -- since females only mate once, this amounts to two offspring per female.
+
+```{r}
+two.off<-unlist(tapply(base$ID[grep("OFF",base$ID)],base$Mom[grep("OFF",base$ID)],sample,size=2,replace=FALSE))
+base.o2<-base[!base$ID %in% two.off,] #keep everything but those two -- leaves two per female
+base.msat.o2<-base.msats[!base.msats$ID %in% two.off,]
+```
+
+```{r}
+write_cervus<-function(gty,file.base,known.parent="Mom"){
+  write.table(gty,paste(file.base,"_genotypes.txt",sep=""),quote=FALSE,col.names = TRUE,row.names=FALSE,sep='\t')
+  write.table(gty[grep("OFF",gty[,1]),c("ID",known.parent)],paste(file.base,"_offspring.txt",sep=""),
+              quote=FALSE,col.names = FALSE,row.names=FALSE,sep='\t')
+  write.table(grep("MAL",gty[,1],value = TRUE),paste(file.base,"_candidate_fathers.txt",sep=""),
+              quote=FALSE,col.names = FALSE,row.names=FALSE,sep='\t')
+  write.table(grep("FEM",gty[,1],value = TRUE),paste(file.base,"_candidate_mothers.txt",sep=""),
+              quote=FALSE,col.names = FALSE,row.names=FALSE,sep='\t')
+}
+sample_snps<-function(base,nsample,file.base){
+  snps<-sample(grep("SNP\\d+a",colnames(base)),nsample,replace=FALSE)
+  snp<-base[,c(1:3,sort(c(snps,snps+1)))]
+  write_cervus(snp,file.base)
+  return(snp)
+}
+
+snp50<-sample_snps(base.o2,50,"sample50SNPs")
+snp100<-sample_snps(base.o2,100,"sample100SNPs") 
+snp200<-sample_snps(base.o2,200,"sample200SNPs")
+snp500<-sample_snps(base.o2,500,"sample500SNPs")
+snp1000<-sample_snps(base.o2,1000,"sample1000SNPs")
+
+```
+
+### Variable family sizes
+
+One of the datasets needs 100 SNPs but four offspring and another needs 100 SNPs and 2 offspring. Ideally these would be the same 100 SNPs as in the 100SNPs-2offspring dataset. So we'll return to the base dataset and pull out the columns from 100 SNPs.
+
+```{r}
+off4<-base[,colnames(base)%in% colnames(snp100)]
+write_cervus(off4,"sample4offspring")
+write.table(base.msats,"sample4offspring_microsatellites.txt",sep='\t',col.names=TRUE,row.names=FALSE,quote=FALSE)
+#remove one offspring per female
+one.off<-unlist(tapply(as.character(snp100$ID[grep("OFF",snp100$ID)]),snp100$Mom[grep("OFF",snp100$ID)],sample,size=1,replace=FALSE))
+off1<-snp100[!snp100$ID %in% one.off,] #keep everything but these ones -- leaves one per female
+write_cervus(off1,"sample1offspring")
+write.table(base.msats[base.msats$ID %in% off1$ID,],"sample1offspring_microsatellites.txt",sep='\t',col.names=TRUE,row.names=FALSE,quote=FALSE)
+```
+
+
+### Subset of parents are sampled
+
+To create a dataset where only a subset of the parents were sampled, we want a base with 100 adults, 100 SNPs, and 2 offspring per mating -- `snps100` works for this.
+
+```{r}
+
+remove_parents<-function(gty,nprop,file.base){
+  all.males<-grep("MAL",gty[,1],value = TRUE)
+  all.femal<-grep("FEM",gty[,1],value = TRUE)
+  rem<-c(sample(all.males,size = (nprop*length(all.males)),replace = FALSE),
+         sample(all.femal,size = (nprop*length(all.femal)),replace = FALSE))
+  parent<-gty[!gty[,1] %in% rem,]
+  write_cervus(parent,file.base)
+  return(parent)
+}
+#50% of parents
+parent50<-remove_parents(snp100,0.5,"sample50PCparents")
+write.table(base.msats[base.msats$ID %in% parent50$ID,],"sample50PCparents_microsatellites.txt",sep='\t',col.names=TRUE,row.names=FALSE,quote=FALSE)
+#80% of parents
+parent80<-remove_parents(snp100,0.8,"sample20PCparents")
+write.table(base.msats[base.msats$ID %in% parent80$ID,],"sample20PCparents_microsatellites.txt",sep='\t',col.names=TRUE,row.names=FALSE,quote=FALSE)
+```
+
+
+
+## Converting the data
+
+Now that all of the data are available, I need to generate different formats for the different programs. I've created an R file with functions to convert files.
+
+```{r}
+source("../R/parentageConverteR.R")
+```
+
+## Running various programs
+
+Many of the parentage programs are stand-alones, but some are run in R, like `sequoia`.
+
+### Sequoia
+
+```{r}
+library(sequoia)
+```
+
+To run sequoia, I need to generate LifeHistData, which has columns ID, Sex, and birth year (BY), so I created a function to do that. Since I want to run sequoia on my different simulated datasets and evaluate the proportion of correctly assigned moms and dads, I created a function:
+
+```{r}
+run_sequoia<-function(gt.name,start.col=4,...){
+  #run sequoia
+  GenoM<-cervus2sequoia(gt.name,start.col=start.col)
+  LifeHistData<-generate_seq_lifehist(rownames(GenoM))
+  seq<-sequoia(GenoM,LifeHistData,...)
+  known<-read.delim(gt.name)
+  known<-known[grep("OFF",known$ID),1:3]
+  
+  #how many moms are correctly assigned?
+  assigned.moms<-seq$PedigreePar[!is.na(seq$PedigreePar$dam),]
+  compare.moms<-merge(known,assigned.moms,by.x="ID",by.y="id")
+  prop.corr.mom<-nrow(compare.moms[compare.moms$Mom==compare.moms$dam,])/nrow(known)
+  
+  #how many dads are correctly assigned?
+  assigned.dads<-seq$PedigreePar[!is.na(seq$PedigreePar$sire),]
+  compare.dads<-merge(known,assigned.dads,by.x="ID",by.y="id")
+  prop.corr.dad<-nrow(compare.dads[compare.dads$Dad==compare.dads$sire,])/nrow(known)
+  return(list=c(output=seq,data.frame(File=gt.name,NumMomsAssigned=nrow(assigned.moms),NumDadsAssigned=nrow(assigned.dads),
+                PropMomsCorrect=prop.corr.mom,PropDadsCorrect=prop.corr.dad)))
+}
+
+gty.files<-list.files(pattern="genotypes.txt")
+SeqOut<-lapply(gty.files,run_sequoia,MaxSibIter=0,MaxSibshipSize = 200)
+```
+
+
