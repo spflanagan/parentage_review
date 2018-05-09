@@ -205,6 +205,10 @@ run_sequoia<-function(gt.name,start.col=4,...){
 gty.files<-list.files(pattern="genotypes.txt")
 SequoiaStats<-do.call(rbind,lapply(gty.files,run_sequoia,MaxSibIter=0,MaxSibshipSize = 200))
 write.csv(SequoiaStats,"SequoiaStats.csv")
+
+mst.files<-list.files(pattern="microsatellites.txt")
+SequoiaStatsMsat<-do.call(rbind,lapply(mst.files,run_sequoia,MaxSibIter=0,MaxSibshipSize = 200))
+write.csv(SequoiaStatsMsat,"SequoiaStatsMsat.csv")
 ```
 
 
