@@ -140,15 +140,44 @@ Now that all of the data are available, I need to generate different formats for
 source("../R/parentageConverteR.R")
 ```
 
+### FaMoZ
+
 FaMoz has its own standalone program that I can run in Linux, but it requires a specific file format. I can converge CERVUS genotype files to FaMoZ format using a function I wrote
 
 ```{r}
 gty.files<-list.files(pattern="genotypes.txt")
+```
+```{r}
 famoz<-lapply(gty.files,function(file){
   famname<-paste("famoz/",gsub("genotypes","famoz",file),sep="")
   gty<-read.delim(file)
   f<-cervus2famoz(gty=gty,filename = famname)
 })
+```
+
+### SOLOMON
+
+SOLOMON has a manual available here: http://www.science.oregonstate.edu/~christim/manual.pdf, which specifies that you need a different file for adults and offspring (or separate ones for moms, dads, and offspring). This is almost identical to CERVUS input except there can only be one column with ID information. I have a function to do this.
+
+```{r}
+slmn<-lapply(gty.files,function(file){
+  dir<-paste("SOLOMON/",gsub("_genotypes.txt","",file),sep="")
+  dir.create(dir)
+  outname<-paste(dir,gsub("genotypes.txt","",file),sep="/")
+  gty<-read.delim(file)
+  s<-cervus2solomon(gty=gty,filename = outname)
+})
+```
+
+### MasterBayes
+
+```{r}
+Gs<-lapply(gty.files,function(file){
+  outname<-paste("MasterBayes/",gsub("genotypes.txt","",file),sep="")
+  gty<-read.delim(file)
+  G<-cervus2colonyG(gty=gty,filename = outname)
+})
+Ps<-lapply(Gs,cervus2colonyP,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
 ```
 
 
@@ -223,4 +252,28 @@ SequoiaStatsMsat<-do.call(rbind,lapply(mst.files,run_sequoia,MaxSibIter=0,MaxSib
 write.csv(SequoiaStatsMsat,"SequoiaStatsMsat.csv")
 ```
 
+### SOLOMON
 
+To run SOLOMON, you open a GUI with the command `solomon()`
+
+```{r}
+library("SOLOMON")
+```
+
+### MasterBayes
+
+```{r}
+library(MasterBayes)
+```
+```{r}
+Gs<-lapply(gty.files,cervus2colonyG)
+Ps<-lapply(Gs,cervus2colonyP,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
+
+mb<-mapply(function(G,P){
+  GdP<-GdataPed(G=G, categories=NULL)
+  sP<-startPed(estG=FALSE, A=extractA(G), E1=0.005, E2=0.005,estUSsire=FALSE, USsire=10) 
+  model<-MCMCped(PdP=P, GdP=GdP, sP=sP, verbose=FALSE)
+  return(model)
+},Gs,Ps)
+
+```

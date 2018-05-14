@@ -83,5 +83,73 @@ cervus2famoz<-function(gty,filename,first.allele=4,miss=0,sexes=c(Males="MAL",Fe
   
 }
 
+#' Convert a CERVUS file into input for SOLOMON
+#' @param gty A data.frame of genotypes in CERVUS format
+#' @param filename The name of the file to export the SOLOMON files to.
+#' @param first.allele The first column with an allele (locus 1, alele 1). Default is 4.
+#' @param miss The character specifying missing data. Default is 0.  
+#' @param sexes A labeled list with Males, Females, and Offspring elements all designating strings found in ID names that identify individuals as males, females and offspring
+#' @param output A boolean variable designating whether adults should be output together (TRUE) or separately as moms and dads (FALSE)
+#' @export
+cervus2solomon<-function(gty,filename,first.allele=4,miss=0,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"),
+                         together=FALSE,knownDads=FALSE,knownMoms=FALSE){
+  if(miss != 0){
+    gty[gty==miss]<-0
+  }
+  if(isTRUE(together)){
+    #parent genotypes
+    parents<-gty[c(grep(sexes["Males"],gty$ID),grep(sexes["Females"],gty$ID)),c(1,first.allele:ncol(gty))]
+    rownames(parents)<-NULL
+    write.table(parents,paste(filename,"parents.txt",sep=""),row.names=FALSE,col.names = TRUE,quote=FALSE,sep='\t')
+  }else{ #they're separate
+    #dad genotypes
+    dads<-gty[grep(sexes["Males"],gty$ID),c(1,first.allele:ncol(gty))]
+    rownames(dads)<-NULL
+    write.table(dads,paste(filename,"dads.txt",sep=""),row.names=FALSE,col.names = TRUE,quote=FALSE,sep='\t')
+    #mom genotypes
+    moms<-gty[grep(sexes["Females"],gty$ID),c(1,first.allele:ncol(gty))]
+    rownames(moms)<-NULL
+    write.table(moms,paste(filename,"moms.txt",sep=""),row.names=FALSE,col.names = TRUE,quote=FALSE,sep='\t')
+  }
+  #offspring genotypes
+  offspring<-gty[grep(sexes["Offspring"],gty$ID),c(1,first.allele:ncol(gty))]
+  rownames(offspring)<-NULL
+  write.table(offspring,paste(filename,"offspring.txt",sep=""),row.names=FALSE,col.names = TRUE,quote=FALSE,sep='\t')
+}
+
+#' Convert a data.frame formatted for CERVUS to input for sequoia
+#' @param gt.name The file name of the genotypes file
+#' @param sep An optional character that is the separator for the genotype file (default is tab delimited)
+#' @param start.col The column where the first allele is found. Default is 2.
+#' @param header A boolean variable indicating whether the file has a header row (default is TRUE)
+#' @return gty A matrix with all of the genotypes in 0,1,2 format with -9 as missing values
+#' @export
+cervus2colonyG<-function(gt.name,sep='\t',start.col=4,header = TRUE){
+  gt<-read.delim(gt.name,sep=sep,header=header)
+  gty<-gt[,c(1,start.col:ncol(gt))]
+  colnames(gty)[1]<-"id"
+  return(gty)
+}
+
+#' Convert a data.frame formatted for CERVUS to input for sequoia
+#' @param ids A vector or data.frame with all of the individual IDs. If data.frame is provided, then all of the columns are retained in the final dataset, and the IDs need to be in the first column.
+#' @param sexes A labeled list with Males, Females, and Offspring elements all designating strings found in ID names that identify individuals as males, females and offspring
+#' @return A data.frame with columns ID, offspring, and sex
+#' @export
+cervus2colonyP<-function(ids,sexes=c(Males="MAL",Females="FEM",Offspring="OFF")){
+  if(class(ids) == "data.frame"){
+    dat<-ids
+    colnames(dat)[1]<-"IDs"
+  }else{
+    dat<-data.frame(IDs=ids)
+  }
+  dat$sex<-NA
+  dat$sex[grep(sexes["Males"],dat$sex)]<-"Male"
+  dat$sex[grep(sexes["Females"],dat$sex)]<-"Female"
+  dat$offspring<-0
+  dat$offspring[grep(sexes["Offspring"],dat$offspring)]<-1
+  return(dat)
+}
+
 
 
