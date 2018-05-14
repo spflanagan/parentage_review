@@ -48,7 +48,7 @@ To generate these datasets I created 7 datasets from C++, one of which will be s
 
 All of the data are output from the C++ program in CERVUS format. First I need to take the large dataset, with the base name `parentsim_F100f4S5000`, and subset it to contain subsets of the parents, offspring, and SNPs.
 
-```{r}
+```{r,eval=FALSE}
 base<-read.delim("parentsim_F100f4S5000_genotypes.txt")
 base.msats<-read.delim("parentsim_F100f4S5000_microsatellites.txt")
 base[1:5,1:10]
@@ -60,13 +60,13 @@ The genotype data has three initial columns: the individual ID, the mother's ID,
 
 First, let's choose two offspring per mating -- since females only mate once, this amounts to two offspring per female.
 
-```{r}
+```{r,eval=FALSE}
 two.off<-unlist(tapply(base$ID[grep("OFF",base$ID)],base$Mom[grep("OFF",base$ID)],sample,size=2,replace=FALSE))
 base.o2<-base[!base$ID %in% two.off,] #keep everything but those two -- leaves two per female
 base.msat.o2<-base.msats[!base.msats$ID %in% two.off,]
 ```
 
-```{r}
+```{r,eval=FALSE}
 write_cervus<-function(gty,file.base,known.parent="Mom"){
   write.table(gty,paste(file.base,"_genotypes.txt",sep=""),quote=FALSE,col.names = TRUE,row.names=FALSE,sep='\t')
   write.table(gty[grep("OFF",gty[,1]),c("ID",known.parent)],paste(file.base,"_offspring.txt",sep=""),
@@ -95,7 +95,7 @@ snp1000<-sample_snps(base.o2,1000,"sample1000SNPs")
 
 One of the datasets needs 100 SNPs but four offspring and another needs 100 SNPs and 2 offspring. Ideally these would be the same 100 SNPs as in the 100SNPs-2offspring dataset. So we'll return to the base dataset and pull out the columns from 100 SNPs.
 
-```{r}
+```{r,eval=FALSE}
 off4<-base[,colnames(base)%in% colnames(snp100)]
 write_cervus(off4,"sample4offspring")
 write.table(base.msats,"sample4offspring_microsatellites.txt",sep='\t',col.names=TRUE,row.names=FALSE,quote=FALSE)
@@ -111,7 +111,7 @@ write.table(base.msats[base.msats$ID %in% off1$ID,],"sample1offspring_microsatel
 
 To create a dataset where only a subset of the parents were sampled, we want a base with 100 adults, 100 SNPs, and 2 offspring per mating -- `snps100` works for this.
 
-```{r}
+```{r,eval=FALSE}
 
 remove_parents<-function(gty,nprop,file.base){
   all.males<-grep("MAL",gty[,1],value = TRUE)
@@ -140,6 +140,18 @@ Now that all of the data are available, I need to generate different formats for
 source("../R/parentageConverteR.R")
 ```
 
+FaMoz has its own standalone program that I can run in Linux, but it requires a specific file format. I can converge CERVUS genotype files to FaMoZ format using a function I wrote
+
+```{r}
+gty.files<-list.files(pattern="genotypes.txt")
+famoz<-lapply(gty.files,function(file){
+  famname<-paste("famoz/",gsub("genotypes","famoz",file),sep="")
+  gty<-read.delim(file)
+  f<-cervus2famoz(gty=gty,filename = famname)
+})
+```
+
+
 ## Running various programs
 
 Many of the parentage programs are stand-alones, but some are run in R, like `sequoia`.
@@ -152,7 +164,7 @@ library(sequoia)
 
 To run sequoia, I need to generate LifeHistData, which has columns ID, Sex, and birth year (BY), so I created a function to do that. Since I want to run sequoia on my different simulated datasets and evaluate the proportion of correctly assigned moms and dads, I created a function:
 
-```{r}
+```{r,eval=FALSE}
 run_sequoia<-function(gt.name,start.col=4,...){
   #run sequoia
   GenoM<-cervus2sequoia(gt.name,start.col=start.col)
