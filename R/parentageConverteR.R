@@ -152,4 +152,11 @@ cervus2colonyP<-function(ids,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
 }
 
 
+cervus2plink<-function(gty){
+  
+}
 
+
+cervus2pedapp<-function(gty){
+  
+}

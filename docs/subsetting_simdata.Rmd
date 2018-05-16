@@ -167,6 +167,12 @@ slmn<-lapply(gty.files,function(file){
   gty<-read.delim(file)
   s<-cervus2solomon(gty=gty,filename = outname)
 })
+slmnp<-lapply(gty.files,function(file){
+  dir<-paste("SOLOMON/",gsub("_genotypes.txt","",file),sep="")
+  outname<-paste(dir,gsub("genotypes.txt","",file),sep="/")
+  gty<-read.delim(file)
+  s<-cervus2solomon(gty=gty,filename = outname,together=TRUE)
+})
 ```
 
 ### MasterBayes
