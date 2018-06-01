@@ -146,10 +146,16 @@ FaMoz has its own standalone program that I can run in Linux, but it requires a 
 
 ```{r}
 gty.files<-list.files(pattern="genotypes.txt")
+mst.files<-list.files(pattern = "microsatellites.txt")
 ```
 ```{r}
 famoz<-lapply(gty.files,function(file){
   famname<-paste("famoz/",gsub("genotypes","famoz",file),sep="")
+  gty<-read.delim(file)
+  f<-cervus2famoz(gty=gty,filename = famname)
+})
+famoz.mst<-lapply(mst.files,function(file){
+  famname<-paste("famoz/",gsub("microsatellites","ms_famoz",file),sep="")
   gty<-read.delim(file)
   f<-cervus2famoz(gty=gty,filename = famname)
 })
@@ -175,17 +181,60 @@ slmnp<-lapply(gty.files,function(file){
 })
 ```
 
-### MasterBayes
+### PARFEX
+
+PARFEX uses Excel macros, so I need to change the output and then copy and paste it into excel.
+
+```{r}
+parfex<-lapply(gty.files,function(file){
+  outname<-paste("parfex/",gsub("genotypes","parfex",file),sep="")
+  gty<-read.delim(file)
+  f<-cervus2parfex(gty=gty,filename = outname)
+})
+parfex.mst<-lapply(mst.files,function(file){
+  outname<-paste("parfex/",gsub("microsatellites","ms_parfex",file),sep="")
+  gty<-read.delim(file)
+  f<-cervus2parfex(gty=gty,filename = outname,type="M2")
+})
+```
+
+### PedApp
+
+PedApp2 needs a specific output format and then run the data through the program.
+
+```{r}
+pedapp<-lapply(gty.files,function(file){
+  outname<-paste("pedapp/",gsub("genotypes","pedapp",file),sep="")
+  gty<-read.delim(file)
+  f<-cervus2pedapp(gty=gty,filename = outname)
+})
+pedapp.mst<-lapply(mst.files,function(file){
+  outname<-paste("pedapp/",gsub("microsatellites","ms_pedapp",file),sep="")
+  gty<-read.delim(file)
+  f<-cervus2pedapp(gty=gty,filename = outname)
+})
+```
+
+### COLONY and MasterBayes
 
 ```{r}
 Gs<-lapply(gty.files,function(file){
-  outname<-paste("MasterBayes/",gsub("genotypes.txt","",file),sep="")
-  gty<-read.delim(file)
-  G<-cervus2colonyG(gty=gty,filename = outname)
+  outname<-paste("MasterBayes/",file,sep="")
+  G<-cervus2colonyG(file)
+  write.table(G,outname,row.names = FALSE,col.names = TRUE,sep='\t',quote=FALSE)
+  P<-cervus2colonyP(G,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
+  p.outname<-paste("MasterBayes/",gsub("genotypes","phenotypes",file),sep="")
+  write.table(P,p.outname,row.names = FALSE,col.names = TRUE,sep='\t',quote=FALSE)
+  return(G)
 })
-Ps<-lapply(Gs,cervus2colonyP,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
+
 ```
 
+### PLINK
+
+```{r}
+peds<-lapply(gty.files,cervus2plink)
+```
 
 ## Running various programs
 
@@ -273,11 +322,16 @@ library(MasterBayes)
 ```
 ```{r}
 Gs<-lapply(gty.files,cervus2colonyG)
-Ps<-lapply(Gs,cervus2colonyP,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
+Ps<-lapply(Gs,function(G){
+  cervus2colonyP(G$id,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
+})
 
 mb<-mapply(function(G,P){
   GdP<-GdataPed(G=G, categories=NULL)
   sP<-startPed(estG=FALSE, A=extractA(G), E1=0.005, E2=0.005,estUSsire=FALSE, USsire=10) 
+  res1<-expression(varPed(x="famID",gender="Male",relational="OFFSPRING",restrict="=="))#offspring match to males
+res2<-expression(varPed(x="offspring",gender=NULL,relational=FALSE,restrict=0)) #remove offspring from parental pop
+PdP<-PdataPed(formula=list(res1,res2),data=PipefishP,USdam=TRUE)
   model<-MCMCped(PdP=P, GdP=GdP, sP=sP, verbose=FALSE)
   return(model)
 },Gs,Ps)

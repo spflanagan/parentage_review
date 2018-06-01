@@ -141,22 +141,93 @@ cervus2colonyP<-function(ids,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
     dat<-ids
     colnames(dat)[1]<-"IDs"
   }else{
-    dat<-data.frame(IDs=ids)
+    dat<-data.frame(IDs=ids,stringsAsFactors = FALSE)
   }
   dat$sex<-NA
-  dat$sex[grep(sexes["Males"],dat$sex)]<-"Male"
-  dat$sex[grep(sexes["Females"],dat$sex)]<-"Female"
+  dat$sex[grep(sexes["Males"],dat$IDs)]<-"Male"
+  dat$sex[grep(sexes["Females"],dat$IDs)]<-"Female"
   dat$offspring<-0
-  dat$offspring[grep(sexes["Offspring"],dat$offspring)]<-1
+  dat$offspring[grep(sexes["Offspring"],dat$IDs)]<-1
   return(dat)
 }
 
+#' Convert a CERVUS file into PLINK format
+#' @param gty A data.frame of genotypes in CERVUS format
+#' @export
+cervus2plink<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Females="FEM",Offspring="OFF")){
+  gty<-read.delim(file)
+  snp.names<-colnames(gty)[first.allele:ncol(gty)]
+  gty$FamID<-gty$ID
+  gty$sex<-NA
+  gty$sex[grep(sexes["Males"],gty$sex)]<-1
+  gty$sex[grep(sexes["Females"],gty$sex)]<-2
+  gty$Phenotype<--9
+  ped.name<-paste(out.dir,gsub("_genotypes.txt",".ped",file),sep="")
+  map.name<-paste(out.dir,gsub("_genotypes.txt",".map",file),sep="")
+  ped<-gty[,c("FamID","ID","Dad","Mom","sex","Phenotype",snp.names)]
+  map<-data.frame(Chr=0,snp=snp.names[seq(first.allele,ncol(gty),2)],
+                  distance=0,bp=0)
+  write.table(ped,ped.name,row.names = FALSE,col.names=TRUE,quote=TRUE,sep='\t')
+  write.table(map,map.name,row.names = FALSE,col.names=FALSE,quote=TRUE,sep='\t')
+  return(ped)
+}
 
-cervus2plink<-function(gty){
-  
+#' Convert a CERVUS file into input for PedApp
+#' @param gty A data.frame of genotypes in CERVUS format
+#' @param filename The name of the file to export the FaMoz file to.
+#' @param first.allele The first column with an allele (locus 1, alele 1). Default is 4.
+#' @export
+cervus2pedapp<-function(gty,filename,first.allele=4){
+  #Columns 1-2 is pedigree structure matrix
+  #Column 3 is age (generation)
+  #Column 4 is output flag (for 1 allows output)
+  #Columns 5 - x are genotype data
+  #Comma delimited
+  last.col<-ncol(gty)
+  gty$age<-gsub("(\\w{3}).*","\\1",gty$ID)
+  gty$age[gty$age=="OFF"]<-0
+  gty$age[gty$age!=0]<-1
+  gty$sex<-gsub("(\\w{3}).*","\\1",gty$ID)
+  gty$sex[gty$sex=="OFF"]<-0
+  gty$output<-1
+  new.gty<-cbind(gty[,c("ID","age","sex","output")],gty[,first.allele:last.col])
+  write.table(new.gty,filename,row.names = FALSE,col.names=FALSE,
+              sep=",",quote=FALSE)
 }
 
 
-cervus2pedapp<-function(gty){
-  
+#' Convert a CERVUS file into input for FaMoz
+#' @param gty A data.frame of genotypes in CERVUS format
+#' @param filename The name of the file to export the FaMoz file to.
+#' @param first.allele The first column with an allele (locus 1, alele 1). Default is 4.
+#' @param miss The character specifying missing data. Default is 0. 
+#' @param type Default is "snps". For microsatellites it should be ‘M’ followed by the length of repeat-unit.
+#' @param sexes A labeled list with Males, Females, and Offspring elements all designating strings found in ID names that identify individuals as males, females and offspring
+#' @export
+cervus2parfex<-function(gty,filename,first.allele=4,miss=0,type="snps",sexes=c(Males="MAL",Females="FEM",Offspring="OFF")){
+  #get marker names
+  marker.names<-c("Marker",colnames(gty)[seq(first.allele,ncol(gty))])
+  marker.names[grep("b",marker.names)]<-""
+  suppressWarnings(write.table(as.data.frame(t(marker.names)),filename,quote=FALSE,col.names = FALSE,row.names = FALSE,sep='\t'))
+  #marker types
+  marker.types<-marker.names
+  marker.types[1]<-"MarkerType"
+  marker.types[seq(2,length(marker.types),2)]<-type
+  suppressWarnings(write.table(as.data.frame(t(marker.types)),filename,quote=FALSE,col.names = FALSE,row.names = FALSE,append=TRUE,sep='\t'))
+  #fix the genotypes
+  gty[gty==miss]<-"?"
+  bps<-sample(c("A","C","G","T"),2)
+  gty[gty==1]<-bps[1]
+  gty[gty==2]<-bps[2]
+  #Offspring
+  suppressWarnings(write.table("Offspring",filename,quote=FALSE,col.names = FALSE,row.names = FALSE,append=TRUE,sep='\t'))
+  offspring<-as.matrix(gty[grep(sexes["Offspring"],gty$ID),first.allele:ncol(gty)])
+  rownames(offspring)<-gty[grep(sexes["Offspring"],gty$ID),"ID"]
+  suppressWarnings(write.table(offspring,filename,append = TRUE,row.names=TRUE,col.names = FALSE,quote=FALSE,sep='\t'))
+  #Parents
+  suppressWarnings(write.table("Parents",filename,quote=FALSE,col.names = FALSE,row.names = FALSE,append=TRUE,sep='\t'))
+  parents<-as.matrix(gty[c(grep(sexes["Males"],gty$ID),grep(sexes["Females"],gty$ID)),
+                         first.allele:ncol(gty)])
+  rownames(parents)<-gty[c(grep(sexes["Males"],gty$ID),grep(sexes["Females"],gty$ID)),"ID"]
+  suppressWarnings(write.table(parents,filename,append = TRUE,row.names=TRUE,col.names = FALSE,quote=FALSE,sep='\t'))
 }
