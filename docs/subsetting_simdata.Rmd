@@ -215,15 +215,30 @@ pedapp.mst<-lapply(mst.files,function(file){
 })
 ```
 
-### COLONY and MasterBayes
+### SNPPIT
+
+```{r}
+snppit<-lapply(gty.files,function(file){
+  outname<-paste("SNPPIT/",gsub("genotypes","snppit",file),sep="")
+  gty<-read.delim(file)
+  f<-cervus2snppit(gty=gty,filename = outname)
+})
+snppit.mst<-lapply(mst.files,function(file){
+  outname<-paste("SNPPIT/",gsub("microsatellites","ms_snppit",file),sep="")
+  gty<-read.delim(file)
+  f<-cervus2snppit(gty=gty,filename = outname)
+})
+```
+
+### COLONY
 
 ```{r}
 Gs<-lapply(gty.files,function(file){
-  outname<-paste("MasterBayes/",file,sep="")
+  outname<-paste("colony/",file,sep="")
   G<-cervus2colonyG(file)
-  write.table(G,outname,row.names = FALSE,col.names = TRUE,sep='\t',quote=FALSE)
+  write.table(G,outname,row.names = FALSE,col.names = FALSE,sep='\t',quote=FALSE)
   P<-cervus2colonyP(G,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
-  p.outname<-paste("MasterBayes/",gsub("genotypes","phenotypes",file),sep="")
+  p.outname<-paste("colony/",gsub("genotypes","phenotypes",file),sep="")
   write.table(P,p.outname,row.names = FALSE,col.names = TRUE,sep='\t',quote=FALSE)
   return(G)
 })
