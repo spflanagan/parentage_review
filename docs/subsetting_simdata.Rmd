@@ -321,7 +321,7 @@ library("SOLOMON")
 library(MasterBayes)
 ```
 ```{r}
-mb<-lapply(gty.files,function(gfile){
+mb<-lapply(gty.files[4:length(gty.files)],function(gfile){
   G<-cervus2colonyG(gfile)
   GdP<-GdataPed(G=G, categories=NULL)
   P<-cervus2colonyP(G$id,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
@@ -330,7 +330,7 @@ mb<-lapply(gty.files,function(gfile){
   mom.off<-read.delim(gfile)[,1:3]
   mom.off<-mom.off[which(!is.na(mom.off$Mom)),1:2]
   P<-merge(P,mom.off,by.x="ids",by.y="ID",all.x = TRUE) #assign moms
-  res1<-expression(varPed(x="Mom",gender="Female",relational="OFFSPRING",restrict="=="))#offspring match to males
+  res1<-expression(varPed(x="Mom",gender="Female",relational="OFFSPRING",restrict="=="))#offspring match to females
   res2<-expression(varPed(x="offspring",gender=NULL,relational=FALSE,restrict=0)) #remove offspring from parental pop
   PdP<-PdataPed(formula=list(res1,res2),data=P,USsire=TRUE)
   model<-MCMCped(PdP=PdP, GdP=GdP, verbose=TRUE,burnin=50000,nitt=55000)
