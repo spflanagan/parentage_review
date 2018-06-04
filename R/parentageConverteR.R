@@ -201,7 +201,7 @@ cervus2pedapp<-function(gty,filename,first.allele=4){
 #' @param filename The name of the file to export the FaMoz file to.
 #' @param first.allele The first column with an allele (locus 1, alele 1). Default is 4.
 #' @param miss The character specifying missing data. Default is 0. 
-#' @param type Default is "snps". For microsatellites it should be ‘M’ followed by the length of repeat-unit.
+#' @param type Default is "snps". For microsatellites it should be "M" followed by the length of repeat-unit.
 #' @param sexes A labeled list with Males, Females, and Offspring elements all designating strings found in ID names that identify individuals as males, females and offspring
 #' @export
 cervus2parfex<-function(gty,filename,first.allele=4,miss=0,type="snps",sexes=c(Males="MAL",Females="FEM",Offspring="OFF")){
@@ -230,4 +230,122 @@ cervus2parfex<-function(gty,filename,first.allele=4,miss=0,type="snps",sexes=c(M
                          first.allele:ncol(gty)])
   rownames(parents)<-gty[c(grep(sexes["Males"],gty$ID),grep(sexes["Females"],gty$ID)),"ID"]
   suppressWarnings(write.table(parents,filename,append = TRUE,row.names=TRUE,col.names = FALSE,quote=FALSE,sep='\t'))
+}
+
+
+#' Convert a CERVUS file into input for SNPPIT
+#' @param gty A data.frame of genotypes in CERVUS format
+#' @param filename The name of the file to export the SNPPIT file to.
+#' @param first.allele The first column with an allele (locus 1, alele 1). Default is 4.
+#' @param error.rates Either a static error rate or a data.frame with all of 
+#' @param miss The character specifying missing data. Default is 0.  
+#' @param offspring The string that specifies offspring
+#' @param sexes If included, it should be a list of strings that specify the two sexes, and those get included in the output file (e.g., c("MAL","FEM"))
+#' @param known.mom The column with known moms. Use NA to not include.
+#' @param known.dad The column with known dads. Use NA to not include.
+#' @export
+cervus2snppit<-function(gty,filename,error.rates=0.01,first.allele=4,miss=0,
+                        offspring="OFF",sexes=NA,known.mom=2,known.dad=NA){
+  # starting info
+  nloci<-data.frame(info=c(((ncol(gty)-(first.allele-1))/2),miss))
+  rownames(nloci)<-c("NUMLOCI","MISSING_ALLELE")
+  suppressWarnings(write.table(nloci,filename,quote=FALSE,col.names = FALSE,row.names = TRUE,sep=" "))
+  if(!is.na(sexes)){
+    suppressWarnings(write.table("POPCOLUMN_SEX",filename,quote=FALSE,col.names = FALSE,row.names = TRUE,sep=" ",append=TRUE))  
+  }
+  # error rates
+  if(class(error.rates)=="data.frame"){
+    suppressWarnings(write.table(error.rates,filename,quote=FALSE,col.names = FALSE,row.names = FALSE,sep="\t",append=TRUE))
+  } else{
+    er<-data.frame(locus.names=colnames(gty)[seq(first.allele,ncol(gty),2)],
+                   rates=error.rates)
+    suppressWarnings(write.table(er,filename,quote=FALSE,col.names = FALSE,row.names = FALSE,sep="\t",append=TRUE))
+  }
+  # The parents as the POP (I've only got one pop)
+  parents<-gty[grep(offspring,gty$ID,invert = TRUE),]
+  progeny<-gty[grep(offspring,gty$ID),]
+  if(!is.na(sexes)){
+    sex<-substr(gty$ID,start = 1,stop=3)
+    sex[!sex %in% sexes]<-"?"
+    parents[,2]<-sex
+    parents<-parents[,-3]
+  } else{
+    parents<-parents[,-c(2:3)]
+  }
+  suppressWarnings(write.table("POP Parents",filename,append = TRUE,row.names=FALSE,col.names = FALSE,quote=FALSE))
+  suppressWarnings(write.table(parents,filename,append = TRUE,row.names=FALSE,col.names = FALSE,quote=FALSE))
+  # offspring
+  if(!is.na(known.mom) & !is.na(known.dad)){
+    all.moms<-unique(gty[,known.mom])[!is.na(unique(gty[,known.mom]))]
+    all.dads<-unique(gty[,known.dad])[!is.na(unique(gty[,known.dad]))]
+    counter<-1
+    for(i in 1:length(all.moms)){
+      this.mom<-progeny[progeny[,known.mom] %in% all.moms[i],]
+      for(ii in 1:length(all.dads)){
+        this.group<-progeny[progeny[,known.dad] %in% all.dads[ii],]
+        if(!is.na(sexes)){
+          output<-this.group[,-3]
+          output[,2]<-"?"
+        } else{
+          output<-this.group[,-c(2:3)]
+        }
+        cnt.name<-paste("Offspring",counter,sep="")
+        suppressWarnings(write.table(paste("OFFSPRING",cnt.name,"Parents"),filename,
+                                     append = TRUE,row.names=FALSE,col.names = FALSE,quote=FALSE))
+        suppressWarnings(write.table(output,filename,append = TRUE,
+                                     row.names=FALSE,col.names = FALSE,quote=FALSE))
+        counter<-counter+1
+      }
+    }
+    
+  } else if(!is.na(known.mom) & is.na(known.dad)){
+    all.moms<-unique(gty[,known.mom])[!is.na(unique(gty[,known.mom]))]
+    counter<-1
+    for(i in 1:length(all.moms)){
+      this.mom<-progeny[progeny[,known.mom] %in% all.moms[i],]
+      if(!is.na(sexes)){
+        output<-this.mom[,-3]
+        output[,2]<-"?"
+      } else{
+        output<-this.mom[,-c(2:3)]
+      }
+      cnt.name<-paste("Offspring",counter,sep="")
+      suppressWarnings(write.table(paste("OFFSPRING",cnt.name,"Parents"),filename,
+                                   append = TRUE,row.names=FALSE,col.names = FALSE,quote=FALSE))
+      suppressWarnings(write.table(output,filename,append = TRUE,
+                                   row.names=FALSE,col.names = FALSE,quote=FALSE))
+      counter<-counter+1
+    }
+    
+  } else if(is.na(known.mom) & !is.na(known.dad)){
+    all.dads<-unique(gty[,known.dad])[!is.na(unique(gty[,known.dad]))]
+    counter<-1
+    for(i in 1:length(all.dads)){
+      this.dad<-progeny[progeny[,known.dad] %in% all.dads[i],]
+      if(!is.na(sexes)){
+        output<-this.dad[,-3]
+        output[,2]<-"?"
+      } else{
+        output<-this.dad[,-c(2:3)]
+      }
+      cnt.name<-paste("Offspring",counter,sep="")
+      suppressWarnings(write.table(paste("OFFSPRING",cnt.name,"Parents"),filename,
+                                   append = TRUE,row.names=FALSE,col.names = FALSE,quote=FALSE))
+      suppressWarnings(write.table(output,filename,append = TRUE,
+                                   row.names=FALSE,col.names = FALSE,quote=FALSE))
+      counter<-counter+1
+    }
+  } else if(is.na(known.mom) & is.na(known.dad)){
+    # then they all go into one
+    if(!is.na(sexes)){
+      output<-progeny[,-3]
+      output[,2]<-"?"
+    } else{
+      output<-progeny[,-c(2:3)]
+    }
+    suppressWarnings(write.table("OFFSPRING All Parents",filename,append = TRUE,row.names=FALSE,col.names = FALSE,quote=FALSE))
+    suppressWarnings(write.table(output,filename,append = TRUE,row.names=FALSE,col.names = FALSE,quote=FALSE))
+  }
+  
+  
 }
