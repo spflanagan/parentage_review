@@ -139,15 +139,16 @@ Now that all of the data are available, I need to generate different formats for
 ```{r}
 source("../R/parentageConverteR.R")
 ```
+```{r}
+gty.files<-list.files(pattern="genotypes.txt")
+mst.files<-list.files(pattern = "microsatellites.txt")
+```
 
 ### FaMoZ
 
 FaMoz has its own standalone program that I can run in Linux, but it requires a specific file format. I can converge CERVUS genotype files to FaMoZ format using a function I wrote
 
-```{r}
-gty.files<-list.files(pattern="genotypes.txt")
-mst.files<-list.files(pattern = "microsatellites.txt")
-```
+
 ```{r}
 famoz<-lapply(gty.files,function(file){
   famname<-paste("famoz/",gsub("genotypes","famoz",file),sep="")
@@ -218,11 +219,13 @@ pedapp.mst<-lapply(mst.files,function(file){
 
 ### SNPPIT
 
-SNPPIT only works on SNPs, so we won't convert the microsatellites.
+SNPPIT only works on SNPs, so we won't convert the microsatellites. And we'll create a directory for each file to make it easier to run 
 
 ```{r}
 snppit<-lapply(gty.files[grep("simulated",gty.files,invert=TRUE)],function(file){
-  outname<-paste("SNPPIT/",gsub("genotypes","snppit",file),sep="")
+  dir<-paste("SNPPIT/",gsub("_genotypes.txt","/",file),sep="")
+  dir.create(dir)
+  outname<-paste(dir,gsub("genotypes","snppit",file),sep="")
   gty<-read.delim(file)
   f<-cervus2snppit(gty=gty,filename = outname,known.mom=NA)
 })
@@ -428,34 +431,87 @@ mb<-lapply(gty.files[4:length(gty.files)],function(gfile){
 ```{r}
 ## Took this from SCA/scripts/analyze_cervus_output.R -- needs to be generalized for use here.
 
-cervus_correct<-function(gty.files){
+cervus_correct<-function(gty.files,gty.ext="genotypes.txt",csv.ext="paternity.csv"){
   prop<-do.call(rbind,lapply(gty.files,function(filename){
     # get the cervus-assigned dads
-    csvname<-gsub("genotypes.txt","paternity.csv",filename)
-    assigns<-read.csv(filename,row.names = NULL)
+    csvname<-paste("cervus",gsub(gty.ext,csv.ext,filename),sep="/")
+    assigns<-read.csv(csvname,row.names = NULL)
     colnames(assigns)<-colnames(assigns)[-1] #fix the column names
-    sig.assigns<-assigns[assigns$Pair.confidence=="*",]
-    # get the actual dads
-    actuals<-read.delim(filename)[,1:3]
-    actuals<-actuals[!is.na(actuals$Dad),]
-    
-    prop.corr<-nrow(sig.assigns[sig.assigns$dadn==sig.assigns$offn,])/nrow(sig.assigns)
-    num.loci<-as.numeric(gsub(file.patt,"\\1",filename))
-    dir<-gsub("(.*)/.*.csv","\\1",filename)
-    out<-data.frame(MarkerType=dir,NumLoci=as.numeric(num.loci),PropCorrect=as.numeric(prop.corr))
-    rownames(out)<-filename
+    assigns<-assigns[!is.na(assigns$Pair.loci.compared),]
+    sig.assigns<-assigns[!is.na(assigns$Pair.confidence) & assigns$Pair.confidence=="*",]
+    if(nrow(sig.assigns)>0){
+      # get the actual dads
+      actuals<-read.delim(filename)[,1:3]
+      actuals<-actuals[!is.na(actuals$Dad),]
+      # merge them to compare
+      sig.assigns<-merge(sig.assigns,actuals,by.x="Offspring.ID",by.y="ID")
+      ncorr<-nrow(sig.assigns[identical(as.character(sig.assigns$Candidate.father.ID),
+                                            as.character(sig.assigns$Dad)),])
+      nwrong<-nrow(sig.assigns[!identical(as.character(sig.assigns$Candidate.father.ID),
+                                            as.character(sig.assigns$Dad)),])
+      out<-data.frame(file=filename,NumDadsAssigned=nrow(sig.assigns),DadsCorrect=ncorr,DadsWrong=nwrong,
+                      PropAssigned=as.numeric(nrow(sig.assigns)/nrow(assigns)),
+                      PropCorrect=as.numeric(ncorr/nrow(sig.assigns)),PropWrong=as.numeric(nwrong/nrow(sig.assigns)))
+    }else{
+      out<-data.frame(file=filename,NumDadsAssigned=nrow(sig.assigns),DadsCorrect=NA,DadsWrong=NA,
+                      PropAssigned=NA,PropCorrect=NA,PropWrong=NA)
+    }
     return(out)
   }))
   return(prop)
 }
 
-
-csvs<-list.files(path = "cervus",pattern=".csv",full.names = TRUE)
+gty.files<-gty.files[grep("simulated",gty.files,invert=TRUE)]
+cervus.summary<-cervus_correct(gty.files[-3]) #it wouldn't run with 5000 loci
+cervus.msat.summ<-cervus_correct(mst.files,gty.ext="microsatellites.txt",csv.ext="microsat_paternity.csv")
+kable(cervus.summary)
+kable(cervus.msat.summ)
 ```
 
 ### FaMoZ
 
 ### SNPPIT
+
+Output files are in directories for each `gty.files`.
+
+```{r}
+snppit.stats<-do.call(rbind,lapply(gty.files,function(filename){
+  print(filename)
+  if(!file.exists(paste("SNPPIT/",gsub("_genotypes.txt","/",filename),"snppit_output_ParentageAssignments.txt",sep=""))){
+    return(data.frame(file=filename,NumDadsAssigned=NA,DadsCorrect=NA,DadsWrong=NA,
+                      MomsCorrect=NA,MomsWrong=NA,PropAssigned=NA,PropDadsCorrect=NA,PropDadsWrong=NA,
+                      PropMomsCorrect=NA,PropMomsWrong=NA))
+  }else{
+  assigns<-read.delim(paste("SNPPIT/",gsub("_genotypes.txt","/",filename),"snppit_output_ParentageAssignments.txt",sep=""))
+  sig.assigns<-assigns[as.numeric(assigns$Pvalue)<=0.05,]
+  if(nrow(sig.assigns)>0){
+      # get the actual dads
+      actuals<-read.delim(filename)[,1:3]
+      actuals<-actuals[!is.na(actuals$Dad),]
+      # merge them to compare
+      sig.assigns<-merge(sig.assigns,actuals,by.x="Kid",by.y="ID")
+      corrt.dad<-nrow(sig.assigns[identical(as.character(sig.assigns$Pa),
+                                            as.character(sig.assigns$Dad)),])
+      wrong.dad<-nrow(sig.assigns[!identical(as.character(sig.assigns$Pa),
+                                            as.character(sig.assigns$Dad)),])
+      corrt.mom<-nrow(sig.assigns[identical(as.character(sig.assigns$Ma),
+                                            as.character(sig.assigns$Mom)),])
+      wrong.mom<-nrow(sig.assigns[!identical(as.character(sig.assigns$Ma),
+                                            as.character(sig.assigns$Mom)),])
+      out<-data.frame(file=filename,NumDadsAssigned=nrow(sig.assigns),DadsCorrect=corrt.dad,DadsWrong=wrong.dad,
+                      MomsCorrect=corrt.mom,MomsWrong=wrong.mom,PropAssigned=as.numeric(nrow(sig.assigns)/nrow(assigns)),
+                      PropDadsCorrect=as.numeric(corrt.dad/nrow(sig.assigns)),PropDadsWrong=as.numeric(wrong.dad/nrow(sig.assigns)),
+                      PropMomsCorrect=as.numeric(corrt.mom/nrow(sig.assigns)),PropMomsWrong=as.numeric(wrong.mom/nrow(sig.assigns)))
+    }else{
+      out<-data.frame(file=filename,NumDadsAssigned=nrow(sig.assigns),DadsCorrect=NA,DadsWrong=NA,
+                      MomsCorrect=NA,MomsWrong=NA,PropAssigned=NA,PropDadsCorrect=NA,PropDadsWrong=NA,
+                      PropMomsCorrect=NA,PropMomsWrong=NA)
+    }
+    return(out)
+  }
+}))
+kable(snppit.stats)
+```
 
 ### COLONY
 
