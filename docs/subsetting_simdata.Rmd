@@ -420,3 +420,50 @@ mb<-lapply(gty.files[4:length(gty.files)],function(gfile){
 
 ```
 
+
+## Analyzing output from stand-alone programs
+
+### CERVUS
+
+```{r}
+## Took this from SCA/scripts/analyze_cervus_output.R -- needs to be generalized for use here.
+
+cervus_correct<-function(gty.files){
+  prop<-do.call(rbind,lapply(gty.files,function(filename){
+    # get the cervus-assigned dads
+    csvname<-gsub("genotypes.txt","paternity.csv",filename)
+    assigns<-read.csv(filename,row.names = NULL)
+    colnames(assigns)<-colnames(assigns)[-1] #fix the column names
+    sig.assigns<-assigns[assigns$Pair.confidence=="*",]
+    # get the actual dads
+    actuals<-read.delim(filename)[,1:3]
+    actuals<-actuals[!is.na(actuals$Dad),]
+    
+    prop.corr<-nrow(sig.assigns[sig.assigns$dadn==sig.assigns$offn,])/nrow(sig.assigns)
+    num.loci<-as.numeric(gsub(file.patt,"\\1",filename))
+    dir<-gsub("(.*)/.*.csv","\\1",filename)
+    out<-data.frame(MarkerType=dir,NumLoci=as.numeric(num.loci),PropCorrect=as.numeric(prop.corr))
+    rownames(out)<-filename
+    return(out)
+  }))
+  return(prop)
+}
+
+
+csvs<-list.files(path = "cervus",pattern=".csv",full.names = TRUE)
+```
+
+### FaMoZ
+
+### SNPPIT
+
+### COLONY
+
+### PARFEX
+
+### PedApp
+
+### CLAPPER
+
+### PRIMUS
+
