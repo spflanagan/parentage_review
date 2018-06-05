@@ -173,9 +173,10 @@ slmn<-lapply(gty.files,function(file){
   gty<-read.delim(file)
   s<-cervus2solomon(gty=gty,filename = outname)
 })
-slmnp<-lapply(gty.files,function(file){
-  dir<-paste("SOLOMON/",gsub("_genotypes.txt","",file),sep="")
-  outname<-paste(dir,gsub("genotypes.txt","",file),sep="/")
+slmnp<-lapply(mst.files,function(file){
+  dir<-paste("SOLOMON/",gsub("_microsatellites.txt","_msats",file),sep="")
+  dir.create(dir)
+  outname<-paste(dir,gsub("microsatellites.txt","msats_",file),sep="/")
   gty<-read.delim(file)
   s<-cervus2solomon(gty=gty,filename = outname,together=TRUE)
 })
@@ -217,16 +218,13 @@ pedapp.mst<-lapply(mst.files,function(file){
 
 ### SNPPIT
 
+SNPPIT only works on SNPs, so we won't convert the microsatellites.
+
 ```{r}
-snppit<-lapply(gty.files,function(file){
+snppit<-lapply(gty.files[grep("simulated",gty.files,invert=TRUE)],function(file){
   outname<-paste("SNPPIT/",gsub("genotypes","snppit",file),sep="")
   gty<-read.delim(file)
-  f<-cervus2snppit(gty=gty,filename = outname)
-})
-snppit.mst<-lapply(mst.files,function(file){
-  outname<-paste("SNPPIT/",gsub("microsatellites","ms_snppit",file),sep="")
-  gty<-read.delim(file)
-  f<-cervus2snppit(gty=gty,filename = outname)
+  f<-cervus2snppit(gty=gty,filename = outname,known.mom=NA)
 })
 ```
 
@@ -329,6 +327,74 @@ To run SOLOMON, you open a GUI with the command `solomon()`
 ```{r}
 library("SOLOMON")
 ```
+```{r, eval=FALSE}
+solomon()
+```
+
+Once I've run all of the genotypes and microsatellites datasets, I can evaluate the output.
+
+```{r}
+sol.gty.stats<-as.data.frame(do.call(rbind,lapply(gty.files,function(file){
+  dir<-paste("SOLOMON/",gsub("_genotypes.txt","",file),sep="")
+  if(file.exists(paste(dir,"Output_by_offspring.txt",sep="/"))){
+    assignments<-read.delim(paste(dir,"Output_by_offspring.txt",sep="/"))
+    actual<-read.delim(file)[,1:3]
+    actual<-actual[grep("OFF",actual$ID),]
+    ass.counts<-do.call(rbind,apply(actual,1,function(off.act,assignments){
+      off<-off.act[1]
+      r<-which(assignments$Offspring %in% off)
+      if(length(r) > 0){
+        n<-assignments[r,2] #number of parents
+        assign<-assignments[r:(r+n-1),]
+        if(length(grep("FEM",assign$Parents))>0){
+          nmom<-1
+          minmoms<-min(assign[grep("FEM",assign$Parents),4])
+          best.mom<-assign[assign[,4]==minmoms,"Parents"][grep("FEM",assign$Parents)]
+          if(identical(as.character(best.mom),as.character(off.act[["Mom"]]))){
+            mwrong<-0
+          } else{
+            mwrong<-1
+          }
+        } else { 
+          nmom<- 0 
+          mwrong<-NA
+        }
+        if(length(grep("MAL",assign$Parents))>0){
+          ndad<-1
+          mindads<-min(assign[grep("MAL",assign$Parents),4])
+          best.dad<-assign[assign[,4]==mindads,"Parents"][grep("MAL",assign$Parents)]
+          if(identical(as.character(best.dad),as.character(off.act[["Dad"]]))){
+            dwrong<-0
+          }else{
+            dwrong<-1
+          }
+        }else{
+          ndad<-0
+          dwrong<-NA
+        }
+      }
+      else{
+        nmom<- NA 
+        mwrong<-NA
+        ndad<-NA
+        dwrong<-NA
+      }
+      out.dat<-data.frame(mom=nmom,dad=ndad,moms.wrong=mwrong,dads.wrong=dwrong)
+      return(out.dat)
+    },assignments=assignments))
+    ass.stats<-colSums(ass.counts,na.rm = TRUE)
+    props<-c(ass.stats[1:2]/ncol(actual),ass.stats[3:4]/ass.stats[1:2])
+    names(props)<-c("prop.mom","prop.dad","prop.moms.wrong","prop.dads.wrong")
+    ass.stats<-c(file=file,ass.stats,props)
+    return(ass.stats)
+  } else {
+    print(paste(dir,"/Output_by_offspring.txt does not exist", sep=""))
+    return(c(file=file,mom=NA,dad=NA,moms.wrong=NA,dads.wrong=NA,
+             prop.mom=NA,prop.dad=NA,prop.moms.wrong=NA,prop.dads.wrong=NA))
+  }
+})))
+
+```
 
 ### MasterBayes
 
@@ -353,3 +419,4 @@ mb<-lapply(gty.files[4:length(gty.files)],function(gfile){
 })
 
 ```
+
