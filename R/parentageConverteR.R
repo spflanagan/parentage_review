@@ -151,10 +151,16 @@ cervus2colonyP<-function(ids,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
   return(dat)
 }
 
-#' Convert a CERVUS file into PLINK format
-#' @param gty A data.frame of genotypes in CERVUS format
+#' Convert a CERVUS file into PLINK v1.7 format
+#' @param file A data.frame of genotypes in CERVUS format
+#' @param out.dir The directory where the output files belong (default is current director)
+#' @param first.allele The location of the first genotype column
+#' @param sexes A labeled list with Males, Females, and Offspring elements all designating strings found in ID names that identify individuals as males, females and offspring
 #' @export
-cervus2plink<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Females="FEM",Offspring="OFF")){
+cervus2ped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Females="FEM",Offspring="OFF")){
+  if(substr(out.dir,nchar(out.dir),nchar(out.dir))!="/"){
+    out.dir<-paste(out.dir,"/",sep="")
+  }
   gty<-read.delim(file)
   snp.names<-colnames(gty)[first.allele:ncol(gty)]
   gty$FamID<-gty$ID
@@ -165,11 +171,58 @@ cervus2plink<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Fema
   ped.name<-paste(out.dir,gsub("_genotypes.txt",".ped",file),sep="")
   map.name<-paste(out.dir,gsub("_genotypes.txt",".map",file),sep="")
   ped<-gty[,c("FamID","ID","Dad","Mom","sex","Phenotype",snp.names)]
-  map<-data.frame(Chr=0,snp=snp.names[seq(first.allele,ncol(gty),2)],
+  map<-data.frame(Chr=0,snp=snp.names[seq(1,length(snp.names),2)],
                   distance=0,bp=0)
-  write.table(ped,ped.name,row.names = FALSE,col.names=TRUE,quote=TRUE,sep='\t')
-  write.table(map,map.name,row.names = FALSE,col.names=FALSE,quote=TRUE,sep='\t')
+  write.table(ped,ped.name,row.names = FALSE,col.names=TRUE,quote=FALSE,sep='\t')
+  write.table(map,map.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep='\t')
   return(ped)
+}
+
+#' Convert a CERVUS file into PLINK v1.9 format
+#' @param file A data.frame of genotypes in CERVUS format
+#' @param out.dir The directory where the output files belong (default is current director)
+#' @param first.allele The location of the first genotype column
+#' @param sexes A labeled list with Males, Females, and Offspring elements all designating strings found in ID names that identify individuals as males, females and offspring
+#' @export
+cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Females="FEM",Offspring="OFF")){
+  if(substr(out.dir,nchar(out.dir),nchar(out.dir))!="/"){
+    out.dir<-paste(out.dir,"/",sep="")
+  }
+  gty<-read.delim(file)
+  snp.names<-colnames(gty)[first.allele:ncol(gty)]
+  gty$FamID<-gty$ID
+  gty$sex<-NA
+  gty$sex[grep(sexes["Males"],gty$sex)]<-1
+  gty$sex[grep(sexes["Females"],gty$sex)]<-2
+  tped.name<-paste(out.dir,gsub("_genotypes.txt",".tped",file),sep="")
+  tfam.name<-paste(out.dir,gsub("_genotypes.txt",".tfam",file),sep="")
+  tped<-data.frame(Chr=0,snp=snp.names[seq(1,length(snp.names),2)],
+                   distance=0,bp=0,t(gty[,snp.names]))
+  tfam<-data.frame(gty[,c("FamID","ID","Dad","Mom","sex")])
+  write.table(tped,tped.name,row.names = FALSE,col.names=TRUE,quote=FALSE,sep='\t')
+  write.table(tfam,tfam.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep='\t')
+  return(tped)
+}
+
+#' Generate Clapper option files
+#' @export
+getClapperOptions<-function(out.name,File,refpopFile=NA,computeLike=NA,
+                            ageFile=NA,errorRate=NA,maxGen=NA,
+                            maxSampleDepth=NA,condLD=NA,back=NA,
+                            startTemp=NA,tempFact=NA,iterPerTemp=NA,maxIter=NA,
+                            conv=NA,poissonMean=NA,beta=NA,
+                            numRun=NA,numThreads=NA){
+  options<-data.frame(c(File,refpopFile,computeLike,ageFile,errorRate,
+                        maxGen,maxSampleDepth,condLD,back,startTemp,
+                        tempFact,iterPerTemp,maxIter,conv,poissonMean,beta,
+                        numRun,numThreads),
+                      c("#fileName","#refPopFileName","#computeLikelihood",
+                        "#ageFileName","#errorRate","#maxGen","#maxSampleDepth",
+                        "#conditionld","#back","#startTemp","#tempFact",
+                        "#iterPerTemp","#maxIter","#conv","#poissonMean","#beta",
+                        "#numRun","#numThreads"))
+  out.opt<-options[!is.na(options[,1]),]
+  write.table(out.opt,out.name,sep=" ",col.names=FALSE,row.names=FALSE,quote=FALSE)
 }
 
 #' Convert a CERVUS file into input for PedApp

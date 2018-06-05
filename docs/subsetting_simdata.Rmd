@@ -248,8 +248,22 @@ Gs<-lapply(gty.files,function(file){
 
 ### PLINK
 
+Clapper and PRIMUS both use plink file formats
 ```{r}
-peds<-lapply(gty.files,cervus2plink)
+peds<-lapply(gty.files,cervus2ped)
+tpeds<-lapply(gty.files,cervus2tped,out.dir="clapper/")
+```
+
+### Clapper
+
+Clapper requires option files, and I'm going to use default settings
+
+```{r}
+clapopt<-lapply(gty.files,function(file){
+  File<-paste("clapper/",gsub("_genotypes.txt","",file),sep="")
+  out.name<-paste("clapper/",gsub("genotypes","ClapperOptions",file),sep="")
+  getClapperOptions(out.name = out.name,File=File)
+})
 ```
 
 ## Running various programs
