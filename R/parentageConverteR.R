@@ -173,7 +173,7 @@ cervus2ped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Female
   ped<-gty[,c("FamID","ID","Dad","Mom","sex","Phenotype",snp.names)]
   map<-data.frame(Chr=0,snp=snp.names[seq(1,length(snp.names),2)],
                   distance=0,bp=0)
-  write.table(ped,ped.name,row.names = FALSE,col.names=TRUE,quote=FALSE,sep='\t')
+  write.table(ped,ped.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep='\t')
   write.table(map,map.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep='\t')
   return(ped)
 }
@@ -198,11 +198,13 @@ cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Femal
   tfam.name<-paste(out.dir,gsub("_genotypes.txt",".tfam",file),sep="")
   tped<-data.frame(Chr=0,snp=snp.names[seq(1,length(snp.names),2)],
                    distance=0,bp=0,t(gty[,snp.names]))
+  tped[,snp.names][tped[,snp.names]==1]<-"A"
+  tped[,snp.names][tped[,snp.names]==2]<-"T"
   tfam<-data.frame(gty$FamID,gty$ID,Dad=as.character(gty$Dad),Mom=as.character(gty$Mom),gty$sex,
                    stringsAsFactors = FALSE)
   tfam$Dad[is.na(tfam$Dad)]<--9
   tfam$Mom[is.na(tfam$Mom)]<--9
-  write.table(tped,tped.name,row.names = FALSE,col.names=TRUE,quote=FALSE,sep='\t')
+  write.table(tped,tped.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep='\t')
   write.table(tfam,tfam.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep='\t')
   return(tped)
 }
