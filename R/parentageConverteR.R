@@ -191,14 +191,17 @@ cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Femal
   gty<-read.delim(file)
   snp.names<-colnames(gty)[first.allele:ncol(gty)]
   gty$FamID<-gty$ID
-  gty$sex<-NA
-  gty$sex[grep(sexes["Males"],gty$sex)]<-1
-  gty$sex[grep(sexes["Females"],gty$sex)]<-2
+  gty$sex<--9
+  gty$sex[grep(sexes["Males"],gty$ID)]<-1
+  gty$sex[grep(sexes["Females"],gty$ID)]<-2
   tped.name<-paste(out.dir,gsub("_genotypes.txt",".tped",file),sep="")
   tfam.name<-paste(out.dir,gsub("_genotypes.txt",".tfam",file),sep="")
   tped<-data.frame(Chr=0,snp=snp.names[seq(1,length(snp.names),2)],
                    distance=0,bp=0,t(gty[,snp.names]))
-  tfam<-data.frame(gty[,c("FamID","ID","Dad","Mom","sex")])
+  tfam<-data.frame(gty$FamID,gty$ID,Dad=as.character(gty$Dad),Mom=as.character(gty$Mom),gty$sex,
+                   stringsAsFactors = FALSE)
+  tfam$Dad[is.na(tfam$Dad)]<--9
+  tfam$Mom[is.na(tfam$Mom)]<--9
   write.table(tped,tped.name,row.names = FALSE,col.names=TRUE,quote=FALSE,sep='\t')
   write.table(tfam,tfam.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep='\t')
   return(tped)
@@ -206,12 +209,15 @@ cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Femal
 
 #' Generate Clapper option files
 #' @export
-getClapperOptions<-function(out.name,File,refpopFile=NA,computeLike=NA,
-                            ageFile=NA,errorRate=NA,maxGen=NA,
-                            maxSampleDepth=NA,condLD=NA,back=NA,
-                            startTemp=NA,tempFact=NA,iterPerTemp=NA,maxIter=NA,
-                            conv=NA,poissonMean=NA,beta=NA,
-                            numRun=NA,numThreads=NA){
+getClapperOptions<-function(out.name,File,refpopFile=NA,computeLike=1,
+                            ageFile=NA,errorRate=0.01,maxGen=5,
+                            maxSampleDepth=NA,condLD=1,back=0.04,
+                            startTemp=100,tempFact=1.01,iterPerTemp=40000,maxIter=30000000,
+                            conv=0.0001,poissonMean=NA,beta=30,
+                            numRun=3,numThreads=2){
+  if(is.na(refpopFile)) refpopFile<-File
+  if(is.na(ageFile)) ageFile<-"N/A"
+  if(is.na(maxSampleDepth)) maxSampleDepth<-maxGen
   options<-data.frame(c(File,refpopFile,computeLike,ageFile,errorRate,
                         maxGen,maxSampleDepth,condLD,back,startTemp,
                         tempFact,iterPerTemp,maxIter,conv,poissonMean,beta,
