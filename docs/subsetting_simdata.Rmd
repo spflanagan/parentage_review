@@ -246,12 +246,22 @@ Gs<-lapply(gty.files,function(file){
 
 ```
 
-### PLINK
+### PLINK (Clapper and PRIMUS)
 
 Clapper and PRIMUS both use plink file formats
 ```{r}
 peds<-lapply(gty.files,cervus2ped)
 tpeds<-lapply(gty.files,cervus2tped,out.dir="clapper/")
+```
+
+Make PRIMUS age and sex files
+
+```{r}
+invisible(lapply(gty.files,function(gty.file){
+  gty<-read.delim(gty.file)
+  filename<-gsub("_genotypes.txt","",gty.file)
+  makePRIMUSextras(gty=gty,filename = filename,out.dir="primus/",age=TRUE,sex=TRUE)
+}))
 ```
 
 ### Clapper

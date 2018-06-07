@@ -184,22 +184,31 @@ cervus2ped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Female
 #' @param first.allele The location of the first genotype column
 #' @param sexes A labeled list with Males, Females, and Offspring elements all designating strings found in ID names that identify individuals as males, females and offspring
 #' @export
-cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Females="FEM",Offspring="OFF")){
+cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"),
+                      known.mom=NA,known.dad=NA){
   if(substr(out.dir,nchar(out.dir),nchar(out.dir))!="/"){
     out.dir<-paste(out.dir,"/",sep="")
   }
   gty<-read.delim(file)
   snp.names<-colnames(gty)[first.allele:ncol(gty)]
-  gty$FamID<-gty$ID
+  gty$FamID<-0 #no family names
+  if(!is.na(known.mom)){ #then family names will come from moms
+    gty$FamID[grep(sexes["Females"],gty[,known.mom])]<-paste("Fam",gsub(sexes["Females"],"",gty[grep(sexes["Females"],gty[,known.mom]),known.mom]),sep="")
+    gty$FamID[grep(sexes["Females"],gty$ID)]<-paste("Fam",gsub(sexes["Females"],"",gty$ID[grep(sexes["Females"],gty$ID)]),sep="")
+  }
+  if(!is.na(known.dad)){ #then family names will come from moms
+    gty$FamID[grep(sexes["Males"],gty[,known.dad])]<-paste("Fam",gsub(sexes["Males"],"",gty[grep(sexes["Males"],gty[,known.dad]),known.dad]),sep="")
+    gty$FamID[grep(sexes["Males"],gty$ID)]<-paste("Fam",gsub(sexes["Males"],"",gty$ID[grep(sexes["Males"],gty$ID)]),sep="")
+  }
   gty$sex<--9
   gty$sex[grep(sexes["Males"],gty$ID)]<-1
   gty$sex[grep(sexes["Females"],gty$ID)]<-2
   tped.name<-paste(out.dir,gsub("_genotypes.txt",".tped",file),sep="")
   tfam.name<-paste(out.dir,gsub("_genotypes.txt",".tfam",file),sep="")
+  gty[,snp.names][gty[,snp.names]==1]<-"A"
+  gty[,snp.names][gty[,snp.names]==2]<-"T"
   tped<-data.frame(Chr=0,snp=snp.names[seq(1,length(snp.names),2)],
                    distance=0,bp=0,t(gty[,snp.names]))
-  tped[,snp.names][tped[,snp.names]==1]<-"A"
-  tped[,snp.names][tped[,snp.names]==2]<-"T"
   tfam<-data.frame(gty$FamID,gty$ID,Dad=as.character(gty$Dad),Mom=as.character(gty$Mom),gty$sex,
                    stringsAsFactors = FALSE)
   tfam$Dad[is.na(tfam$Dad)]<--9
@@ -209,7 +218,114 @@ cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Femal
   return(tped)
 }
 
+#' Use a CERVUS file (or similar) to create add-on files for PRIMUS (e.g., age_file, sex_file)
+#' @param gty A data.frame of genotypes in CERVUS/Plink format, with the first few columns including other info
+#' @param filename A string that is the prefix for all output files
+#' @param age Boolean, indicating whether you want to create an age file
+#' @param sex Boolean, indicating whether you want to create a sex file
+#' @param sex.col Number indicating which column contains the sex information
+#' @param sexes A labeled list with Males, Females, and Offspring elements all designating strings found in ID names that identify individuals as males and females
+#' @param off.string The string to use to identify offspring based on the ID. If age=TRUE, either this or age.col must be specified
+#' @param age.col The column number containing age information
+#' @param affection Boolean, indicating whether you want to create an affection status file
+#' @param affection.col The column number containing affection status information
+#' @param trait Boolean, indicating whether you want to create a binary trait information file
+#' @param trait.col The column number containing trait information
+#' @export
+makePRIMUSextras<-function(gty,filename,out.dir="./",id.col=1,fid.col=NA,known.mom=NA,known.dad=NA,
+                           age=TRUE,sex=TRUE,sex.col=NA,
+                           sexes=c(Males="MAL",Females="FEM"),
+                           off.string="OFF",age.col=NA,affection=FALSE,affection.col=NA,
+                           trait=FALSE,trait.col=NA){
+  if(is.na(fid.col)){
+    fid<-0
+    if(!is.na(known.mom)){ #then family names will come from moms
+      fid[grep(sexes["Females"],gty[,known.mom])]<-paste("Fam",gsub(sexes["Females"],"",gty[grep(sexes["Females"],gty[,known.mom]),known.mom]),sep="")
+      fid[grep(sexes["Females"],gty$ID)]<-paste("Fam",gsub(sexes["Females"],"",gty$ID[grep(sexes["Females"],gty$ID)]),sep="")
+    }
+    if(!is.na(known.dad)){ #then family names will come from moms
+      fid[grep(sexes["Males"],gty[,known.dad])]<-paste("Fam",gsub(sexes["Males"],"",gty[grep(sexes["Males"],gty[,known.dad]),known.dad]),sep="")
+      fid[grep(sexes["Males"],gty$ID)]<-paste("Fam",gsub(sexes["Males"],"",gty$ID[grep(sexes["Males"],gty$ID)]),sep="")
+    }
+  } else {
+    fid<-gty[,fid.col]
+  }
+  # Do we make a sex file?
+  if(isTRUE(sex)){ #then we make a sex file!
+    if(is.na(sex.col)){
+      sex.out<-as.character(gty[,id.col])
+      sex.out[grep(sexes["Males"],sex.out)]<-1
+      sex.out[grep(sexes["Females"],sex.out)]<-2
+      sex.out[!sex.out %in% c(1,2)]<-0
+    } else {
+      if(length(grep("^1$",gty[,sex.col]))==0 | 
+         length(grep("^2$",gty[,sex.col]))==0 | 
+         length(grep("^0$",gty[,sex.col]))==0){ #make sure it's in the correct format
+        sex.out<-as.character(gty[,sex.col])
+        sex.out[grep(sexes["Males"],sex.out)]<-1
+        sex.out[grep(sexes["Females"],sex.out)]<-2
+        sex.out[!sex.out %in% c(1,2)]<-0
+      } else{
+        sex.out<-gty[,sex.col]
+      }
+    }
+    sex.out<-data.frame(FID=fid,IID=gty[,id.col],SEX=sex.out)
+    write.table(sex.out,paste(out.dir,filename,".sex",sep=""),sep=" ",
+                col.names = FALSE,row.names=FALSE,quote=FALSE)
+  } #end of crating sex file
+  # Do we make an age file?
+  if(isTRUE(age)){
+    if(is.na(age.col)){ #then we use IDs to find offspring
+      ages<-as.character(gty[,id.col])
+      ages[grep(off.string,ages)]<-0
+      ages[ages != 0]<-1
+    } else{
+      ages<-gty[,age.col]
+    }
+    age.out<-data.frame(FID=fid,IID=gty[,id.col],SEX=ages)
+    write.table(age.out,paste(out.dir,filename,".age",sep=""),sep=" ",
+                col.names = FALSE,row.names=FALSE,quote=FALSE)
+  }
+  # Do we make affection status file?
+  if(isTRUE(affection)){
+    if(class(affection.col)=="character"){ #sanity check
+      affection.col<-grep(affection.col,colnames(gty))
+    }
+    write.table(data.frame(FID=fid,IID=gty[,id.col],AFFECTION_STATUS=gty[,affection.col]),
+                paste(out.dir,filename,".affection",sep=""),sep=" ",
+                col.names = FALSE,row.names=FALSE,quote=FALSE)
+  }
+  # Do we make a trait file?
+  if(isTRUE(trait)){
+    if(class(trait.col)=="character"){ #sanity check
+      trait.col<-grep(trait.col,colnames(gty))
+    }
+    write.table(data.frame(FID=fid,IID=gty[,id.col],TRAIT=gty[,trait.col]),
+                paste(out.dir,filename,".btrait",sep=""),sep=" ",
+                col.names = FALSE,row.names=FALSE,quote=FALSE)
+  }
+}
+
 #' Generate Clapper option files
+#' @param out.name
+#' @param File
+#' @param refpopFile=NA
+#' @param computeLike=1
+#' @param ageFile=NA
+#' @param errorRate=0.01
+#' @param maxGen=5
+#' @param maxSampleDepth=NA
+#' @param condLD=1
+#' @param back=0.04
+#' @param startTemp=100
+#' @param tempFact=1.01
+#' @param iterPerTemp=40000
+#' @param maxIter=30000000
+#' @param conv=0.0001
+#' @param poissonMean=NA
+#' @param beta=30
+#' @param numRun=3
+#' @param numThreads=2
 #' @export
 getClapperOptions<-function(out.name,File,refpopFile=NA,computeLike=1,
                             ageFile=NA,errorRate=0.01,maxGen=5,
