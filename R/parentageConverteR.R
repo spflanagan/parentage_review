@@ -117,26 +117,128 @@ cervus2solomon<-function(gty,filename,first.allele=4,miss=0,sexes=c(Males="MAL",
   write.table(offspring,paste(filename,"offspring.txt",sep=""),row.names=FALSE,col.names = TRUE,quote=FALSE,sep='\t')
 }
 
-#' Convert a data.frame formatted for CERVUS to input for sequoia
+#' Create Marker Types and Error Rates file for colony
+#' @param out.name The file name of the output file
+#' @param marker.names A list of marker names
+#' @param codom 1 if the markers are codominant, 2 if they are dominant. Either one value for all loci or a vector containing values for each.
+#' @param ado Allelic dropout rates. Either one value for all loci or a vector containing values for each.
+#' @param ge Genotyping error rates. Either one value for all loci or a vector containing values for each.
+#' @export
+colonyMarkerTypesError<-function(out.name,marker.names,codom=0,ado=0.01,ge=0.001){
+  if(length(ado)==1){ #same info for all markers
+    ado<-rep(ado,length(marker.names))
+  }
+  if(length(codom)==1){ #same info for all markers
+    codom<-rep(codom,length(marker.names))
+  }
+  if(length(ge)==1){ #same info for all markers
+    ge<-rep(ge,length(marker.names))
+  }
+  write.table(data.frame(rbind(marker.names,codom,ado,ge)),
+              out.name,col.names = FALSE,row.names=FALSE,quote=FALSE)
+  return(invisible(data.frame(rbind(marker.names,codom,ado,ge))))
+}
+
+#' Convert a data.frame formatted for CERVUS to input for colony - the offspring genotypes
+#' @param gty The genotypes data frame
+#' @param out.name The output name
+#' @param sub.string A common string in IDs to mark individuals as part of the subset
+#' @param first.allele The column where the first allele is found. Default is 4.
+#' @return off.gty A matrix with all of the genotypes in 0,1,2 format with -9 as missing values
+#' @export
+cervus2colonySUB<-function(gty,out.name,sub.string,first.allele=4){
+  sub.gty<-gty[grep(sub.string,gty[,1]),c(1,first.allele:ncol(gty))]
+  write.table(sub.gty,out.name,
+              col.names=FALSE,row.names=FALSE,quote=FALSE)
+  return(invisible(sub.gty))
+}
+
+
+#' Convert a data.frame formatted for CERVUS to input for coancestry
+#' @param gty.name The file name of the genotypes file
+#' @param dir The directory for output files
+#' @param first.allele The column where the first allele is found. Default is 4.
+#' @param sexes A labeled list with Males, Females, and Offspring elements all designating strings found in ID names that identify individuals as males, females and offspring
+#' @param known.mom The column with known moms. Use NA to not include.
+#' @param known.dad The column with known dads. Use NA to not include.
+#' @param codom 1 if the markers are codominant, 2 if they are dominant. Either one value for all loci or a vector containing values for each.
+#' @param ado Allelic dropout rates. Either one value for all loci or a vector containing values for each.
+#' @param ge Genotyping error rates. Either one value for all loci or a vector containing values for each.
+#' @return gty A matrix with all of the genotypes in 0,1,2 format with -9 as missing values
+#' @export
+cervus2colony<-function(gty.file,dir="./",first.allele=4, sexes=c(Males="MAL",Females="FEM",Offspring="OFF"),
+                        known.mom=2,known.dad=1,codom=0,ado=0.01,ge=0.001){
+  gty<-read.delim(gty.file)
+  basename<-paste(dir,gsub("_genotypes.txt","",gty.file),sep="")
+  # Marker Types and Error Rates
+  colonyMarkerTypesError(paste(basename,"_TypesError.txt",sep=""),
+                         marker.names =
+                           colnames(gty)[seq(first.allele,ncol(gty),2)],
+                         codom = codom,ado=ado,ge=ge)
+  # Genotypes
+  cervus2colonySUB(gty = gty,out.name = paste(basename,"_offspring.txt",sep=""),sexes["Offspring"],
+                   first.allele=first.allele)
+  cervus2colonySUB(gty,paste(basename,"_males.txt",sep=""),sexes["Males"],
+                   first.allele=first.allele)
+  cervus2colonySUB(gty,paste(basename,"_females.txt",sep=""),sexes["Females"],
+                   first.allele=first.allele)
+  # Known parent pairs
+  if(!is.na(known.mom)){
+    known.pairs<-data.frame(Off=gty$ID[grep(sexes["Offspring"],gty$ID)],
+                       Moms=gty[grep(sexes["Offspring"],gty$ID),known.mom],
+                       stringsAsFactors = FALSE)
+    if (file.exists(paste(basename,"_knownmoms.txt"))) file.remove(paste(basename,"_knownmoms.txt"))
+    invisible(do.call(rbind,lapply(unique(known.pairs$Moms),function(mom,allbabes,out.name){
+      babies<-allbabes[allbabes[,2]==mom,1]
+      write.table(t(c(as.character(mom),as.character(babies))),
+                  out.name,col.names=FALSE,row.names=FALSE,quote=FALSE,append=TRUE)
+    },allbabes=known.pairs,out.name=paste(basename,"_knownmoms.txt"))))
+  }
+  if(!is.na(known.dad)){
+    known.pairs<-data.frame(Off=gty$ID[grep(sexes["Offspring"],gty$ID)],
+                            Dads=gty[grep(sexes["Offspring"],gty$ID),known.dad],
+                            stringsAsFactors = FALSE)
+    if (file.exists(paste(basename,"_knowndads.txt"))) file.remove(paste(basename,"_knowndads.txt"))
+    invisible(do.call(rbind,lapply(unique(known.pairs$Dads),function(dad,allbabes,out.name){
+      babies<-allbabes[allbabes[,2]==dad,1]
+      write.table(t(c(as.character(dad),as.character(babies))),
+                  out.name,col.names=FALSE,row.names=FALSE,quote=FALSE,append=TRUE)
+    },allbabes=known.pairs,out.name=paste(basename,"_knowndads.txt"))))
+  }
+  invisible(gty.file)
+}
+
+
+#' Convert a data.frame formatted for CERVUS to input for coancestry
 #' @param gt.name The file name of the genotypes file
 #' @param sep An optional character that is the separator for the genotype file (default is tab delimited)
 #' @param start.col The column where the first allele is found. Default is 2.
 #' @param header A boolean variable indicating whether the file has a header row (default is TRUE)
 #' @return gty A matrix with all of the genotypes in 0,1,2 format with -9 as missing values
+#' @example Gs<-lapply(gty.files,function(file){
+#'outname<-paste("colony/",file,sep="")
+#'G<-cervus2colonyG(file)
+#'write.table(G,outname,row.names = FALSE,col.names = FALSE,sep='\t',quote=FALSE)
+#'
+#'P<-cervus2colonyP(G,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
+#'p.outname<-paste("colony/",gsub("genotypes","phenotypes",file),sep="")
+#'write.table(P,p.outname,row.names = FALSE,col.names = TRUE,sep='\t',quote=FALSE)
+#'return(G)
+#'})
 #' @export
-cervus2colonyG<-function(gt.name,sep='\t',start.col=4,header = TRUE){
+cervus2coancestryG<-function(gt.name,sep='\t',start.col=4,header = TRUE){
   gt<-read.delim(gt.name,sep=sep,header=header)
   gty<-gt[,c(1,start.col:ncol(gt))]
   colnames(gty)[1]<-"id"
   return(gty)
 }
 
-#' Convert a data.frame formatted for CERVUS to input for sequoia
+#' Convert a data.frame formatted for CERVUS to input for coancestry
 #' @param ids A vector or data.frame with all of the individual IDs. If data.frame is provided, then all of the columns are retained in the final dataset, and the IDs need to be in the first column.
 #' @param sexes A labeled list with Males, Females, and Offspring elements all designating strings found in ID names that identify individuals as males, females and offspring
 #' @return A data.frame with columns ID, offspring, and sex
 #' @export
-cervus2colonyP<-function(ids,sexes=c(Males="MAL",Females="FEM",Offspring="OFF")){
+cervus2coancestryP<-function(ids,sexes=c(Males="MAL",Females="FEM",Offspring="OFF")){
   if(class(ids) == "data.frame"){
     dat<-ids
     colnames(dat)[1]<-"IDs"
@@ -342,7 +444,7 @@ getClapperOptions<-function(out.name,File,refpopFile=NA,computeLike=1,
                         numRun,numThreads),
                       c("#fileName","#refPopFileName","#computeLikelihood",
                         "#ageFileName","#errorRate","#maxGen","#maxSampleDepth",
-                        "#conditionld","#back","#startTemp","#tempFact",
+                        "#conditiononld","#back","#startTemp","#tempFact",
                         "#iterPerTemp","#maxIter","#conv","#poissonMean","#beta",
                         "#numRun","#numThreads"))
   out.opt<-options[!is.na(options[,1]),]

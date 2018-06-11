@@ -234,27 +234,19 @@ snppit<-lapply(gty.files[grep("simulated",gty.files,invert=TRUE)],function(file)
 ### COLONY
 
 ```{r}
-Gs<-lapply(gty.files,function(file){
-  outname<-paste("colony/",file,sep="")
-  G<-cervus2colonyG(file)
-  write.table(G,outname,row.names = FALSE,col.names = FALSE,sep='\t',quote=FALSE)
-  P<-cervus2colonyP(G,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
-  p.outname<-paste("colony/",gsub("genotypes","phenotypes",file),sep="")
-  write.table(P,p.outname,row.names = FALSE,col.names = TRUE,sep='\t',quote=FALSE)
-  return(G)
-})
+invisible(lapply(gty.files,cervus2colony,dir="colony/"))
 
 ```
 
-### PLINK (Clapper and PRIMUS)
+### PRIMUS
 
-Clapper and PRIMUS both use plink file formats
+PRIMUS requires ped and map files
+
 ```{r}
 peds<-lapply(gty.files,cervus2ped)
-tpeds<-lapply(gty.files,cervus2tped,out.dir="clapper/")
 ```
 
-Make PRIMUS age and sex files
+...and can take age and sex files
 
 ```{r}
 invisible(lapply(gty.files,function(gty.file){
@@ -266,9 +258,10 @@ invisible(lapply(gty.files,function(gty.file){
 
 ### Clapper
 
-Clapper requires option files, and I'm going to use default settings
+Clapper requires tfam and tped files plus option files, and I'm going to use default settings
 
 ```{r}
+tpeds<-lapply(gty.files,cervus2tped,out.dir="clapper/")
 clapopt<-lapply(gty.files,function(file){
   File<-paste("clapper/",gsub("_genotypes.txt","",file),sep="")
   out.name<-paste("clapper/",gsub("genotypes","ClapperOptions",file),sep="")
