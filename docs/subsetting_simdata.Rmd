@@ -258,7 +258,7 @@ invisible(lapply(gty.files,function(gty.file){
 
 ### Clapper
 
-Clapper requires tfam and tped files plus option files, and I'm going to use default settings
+Clapper requires tfam and tped files plus option files, and I'm going to use default settings. `cervus2tped` is slow because it relies on for-loops.
 
 ```{r}
 tpeds<-lapply(gty.files,cervus2tped,out.dir="clapper/")
@@ -423,9 +423,9 @@ library(MasterBayes)
 ```
 ```{r}
 mb<-lapply(gty.files[4:length(gty.files)],function(gfile){
-  G<-cervus2colonyG(gfile)
+  G<-cervus2coancestryG(gfile)
   GdP<-GdataPed(G=G, categories=NULL)
-  P<-cervus2colonyP(G$id,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
+  P<-cervus2coancestryP(G$id,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"))
   colnames(P)[colnames(P)=="IDs"]<-"ids"
   #assuming we know the mothers - need to get family IDs
   mom.off<-read.delim(gfile)[,1:3]
@@ -434,7 +434,7 @@ mb<-lapply(gty.files[4:length(gty.files)],function(gfile){
   res1<-expression(varPed(x="Mom",gender="Female",relational="OFFSPRING",restrict="=="))#offspring match to females
   res2<-expression(varPed(x="offspring",gender=NULL,relational=FALSE,restrict=0)) #remove offspring from parental pop
   PdP<-PdataPed(formula=list(res1,res2),data=P,USsire=TRUE)
-  model<-MCMCped(PdP=PdP, GdP=GdP, verbose=TRUE,burnin=50000,nitt=55000)
+  model<-MCMCped(PdP=PdP, GdP=GdP, verbose=FALSE,burnin=50000,nitt=55000)
   saveRDS(model,paste("MasterBayes/",gsub("genotypes.txt","mod.RDS",gfile),sep=""))
 })
 

@@ -292,7 +292,8 @@ cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Femal
     out.dir<-paste(out.dir,"/",sep="")
   }
   gty<-read.delim(file)
-  snp.names<-colnames(gty)[first.allele:ncol(gty)]
+  end.snps<-ncol(gty)
+  snps<-colnames(gty)[first.allele:end.snps]
   gty$FamID<-0 #no family names
   if(!is.na(known.mom)){ #then family names will come from moms
     gty$FamID[grep(sexes["Females"],gty[,known.mom])]<-paste("Fam",gsub(sexes["Females"],"",gty[grep(sexes["Females"],gty[,known.mom]),known.mom]),sep="")
@@ -307,10 +308,29 @@ cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Femal
   gty$sex[grep(sexes["Females"],gty$ID)]<-2
   tped.name<-paste(out.dir,gsub("_genotypes.txt",".tped",file),sep="")
   tfam.name<-paste(out.dir,gsub("_genotypes.txt",".tfam",file),sep="")
-  gty[,snp.names][gty[,snp.names]==1]<-"A"
-  gty[,snp.names][gty[,snp.names]==2]<-"T"
-  tped<-data.frame(Chr=0,snp=snp.names[seq(1,length(snp.names),2)],
-                   distance=0,bp=0,t(gty[,snp.names]))
+  gty[,snps][gty[,snps]==1]<-"A"
+  gty[,snps][gty[,snps]==2]<-"T"
+  tped<-data.frame(cbind(Chr=1,snp=snp.names[seq(1,length(snps),2)],
+                   distance=seq(1,length(snps),2)/length(snps),bp=seq(1,length(snps),2),
+                   matrix(as.character(NA),nrow=length(snps)/2,ncol=2*nrow(gty))),
+                   stringsAsFactors = FALSE)
+  ## Tried to vectorize and failed
+  # m<-mapply(function(i,cnt,gty,tped){
+  #   mapply(function(ii,ind.cnt,gtyi,tpedcnt){
+  #     tpedcnt[,c(ind.cnt,ind.cnt+1)]<-gtyi[ii,]
+  #   },1:nrow(gty),seq(5,ncol(tped),2),
+  #   MoreArgs = list(gtyi=gty[,c(i,i+1)],tpedcnt=tped[cnt,]))
+  # },seq(first.allele,end.snps,2),seq(1:length(snps)/2),
+  #        MoreArgs=list(gty=gty,tped=tped))
+  cnt<-1
+  for(i in seq(first.allele,end.snps,2)){#loop through snps
+    ind.cnt<-5 #where the first genotype goes
+    for(ii in 1:nrow(gty)){ #loop through individuals
+      tped[cnt,c(ind.cnt,ind.cnt+1)]<-gty[ii,c(i,i+1)]
+      ind.cnt<-ind.cnt+2
+    }
+    cnt<-cnt+1
+  }
   tfam<-data.frame(gty$FamID,gty$ID,Dad=as.character(gty$Dad),Mom=as.character(gty$Mom),gty$sex,
                    stringsAsFactors = FALSE)
   tfam$Dad[is.na(tfam$Dad)]<--9
@@ -432,16 +452,16 @@ makePRIMUSextras<-function(gty,filename,out.dir="./",id.col=1,fid.col=NA,known.m
 getClapperOptions<-function(out.name,File,refpopFile=NA,computeLike=1,
                             ageFile=NA,errorRate=0.01,maxGen=5,
                             maxSampleDepth=NA,condLD=1,back=0.04,
-                            startTemp=100,tempFact=1.01,iterPerTemp=40000,maxIter=30000000,
-                            conv=0.0001,poissonMean=NA,beta=30,
+                            startTemp=100,tempFact=1.01,iterPerTemp=40000,maxIter=as.character("30000000"),
+                            conv=as.character("0.0001"),poissonMean=NA,beta=30,
                             numRun=3,numThreads=2){
   if(is.na(refpopFile)) refpopFile<-File
   if(is.na(ageFile)) ageFile<-"N/A"
   if(is.na(maxSampleDepth)) maxSampleDepth<-maxGen
   options<-data.frame(c(File,refpopFile,computeLike,ageFile,errorRate,
                         maxGen,maxSampleDepth,condLD,back,startTemp,
-                        tempFact,iterPerTemp,maxIter,conv,poissonMean,beta,
-                        numRun,numThreads),
+                        tempFact,as.character(iterPerTemp),as.character(maxIter),as.character(conv),
+                        poissonMean,beta,numRun,numThreads),
                       c("#fileName","#refPopFileName","#computeLikelihood",
                         "#ageFileName","#errorRate","#maxGen","#maxSampleDepth",
                         "#conditiononld","#back","#startTemp","#tempFact",
@@ -468,7 +488,9 @@ cervus2pedapp<-function(gty,filename,first.allele=4){
   gty$age[gty$age!=0]<-1
   gty$sex<-gsub("(\\w{3}).*","\\1",gty$ID)
   gty$sex[gty$sex=="OFF"]<-0
+  gty$sex[gty$sex!=0]<-as.numeric(as.factor(gty$sex[gty$sex!=0]))
   gty$output<-1
+  gty$ID<-as.numeric(as.factor(gty$ID))
   new.gty<-cbind(gty[,c("ID","age","sex","output")],gty[,first.allele:last.col])
   write.table(new.gty,filename,row.names = FALSE,col.names=FALSE,
               sep=",",quote=FALSE)
@@ -495,9 +517,16 @@ cervus2parfex<-function(gty,filename,first.allele=4,miss=0,type="snps",sexes=c(M
   suppressWarnings(write.table(as.data.frame(t(marker.types)),filename,quote=FALSE,col.names = FALSE,row.names = FALSE,append=TRUE,sep='\t'))
   #fix the genotypes
   gty[gty==miss]<-"?"
-  bps<-sample(c("A","C","G","T"),2)
-  gty[gty==1]<-bps[1]
-  gty[gty==2]<-bps[2]
+  if(type=="snps"){
+    bps<-sample(c("A","C","G","T"),2)
+    gty[gty==1]<-bps[1]
+    gty[gty==2]<-bps[2]
+  }else{
+    nalleles<-max(gty[,first.allele:ncol(gty)])
+    n<-as.numeric(gsub("M(\\d+)","\\1",type))
+    bps<-sample(seq(130,400,n),nalleles,replace = FALSE)
+    for(i in 1:nalleles){ gty[gty==i]<-bps[i] }
+  }
   #Offspring
   suppressWarnings(write.table("Offspring",filename,quote=FALSE,col.names = FALSE,row.names = FALSE,append=TRUE,sep='\t'))
   offspring<-as.matrix(gty[grep(sexes["Offspring"],gty$ID),first.allele:ncol(gty)])
