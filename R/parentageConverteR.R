@@ -187,6 +187,7 @@ cervus2colony<-function(gty.file,dir="./",first.allele=4, sexes=c(Males="MAL",Fe
     known.pairs<-data.frame(Off=gty$ID[grep(sexes["Offspring"],gty$ID)],
                        Moms=gty[grep(sexes["Offspring"],gty$ID),known.mom],
                        stringsAsFactors = FALSE)
+    known.pairs<-known.pairs[known.pairs$Moms %in% gty$ID,]
     if (file.exists(paste(basename,"_knownmoms.txt"))) file.remove(paste(basename,"_knownmoms.txt"))
     invisible(do.call(rbind,lapply(unique(known.pairs$Moms),function(mom,allbabes,out.name){
       babies<-allbabes[allbabes[,2]==mom,1]
@@ -198,6 +199,7 @@ cervus2colony<-function(gty.file,dir="./",first.allele=4, sexes=c(Males="MAL",Fe
     known.pairs<-data.frame(Off=gty$ID[grep(sexes["Offspring"],gty$ID)],
                             Dads=gty[grep(sexes["Offspring"],gty$ID),known.dad],
                             stringsAsFactors = FALSE)
+    known.pairs<-known.pairs[known.pairs$Dads %in% gty$ID,]
     if (file.exists(paste(basename,"_knowndads.txt"))) file.remove(paste(basename,"_knowndads.txt"))
     invisible(do.call(rbind,lapply(unique(known.pairs$Dads),function(dad,allbabes,out.name){
       babies<-allbabes[allbabes[,2]==dad,1]
@@ -335,8 +337,8 @@ cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Femal
                    stringsAsFactors = FALSE)
   tfam$Dad[is.na(tfam$Dad)]<--9
   tfam$Mom[is.na(tfam$Mom)]<--9
-  write.table(tped,tped.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep='\t')
-  write.table(tfam,tfam.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep='\t')
+  write.table(tped,tped.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep=" ")
+  write.table(tfam,tfam.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep=" ")
   return(tped)
 }
 

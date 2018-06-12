@@ -235,6 +235,7 @@ snppit<-lapply(gty.files[grep("simulated",gty.files,invert=TRUE)],function(file)
 
 ```{r}
 invisible(lapply(gty.files,cervus2colony,dir="colony/"))
+invisible(lapply(mst.files,cervus2colony,dir="colony/"))
 
 ```
 
