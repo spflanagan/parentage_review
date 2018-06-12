@@ -488,6 +488,71 @@ kable(cervus.msat.summ)
 
 ### FaMoZ
 
+```{r}
+famoz.summ<-function(gfile,dir="famoz",base.name="genotypes",respar.base="respar"){
+  print(gfile)
+  res1<-read.delim(paste(dir,gsub(base.name,paste(respar.base,"1",sep=""),gfile),sep="/"),sep=" ")[,2:3]
+  res2<-read.delim(paste(dir,gsub(base.name,paste(respar.base,"2",sep=""),gfile),
+                         sep="/"),sep=" ",row.names=NULL)[,2:4]
+  #get the off and parent ids
+  gty<-read.delim(gfile)
+  par<-gty[is.na(gty[,2]),1]
+  off<-gty[!is.na(gty[,2]),1]
+  #single parent matches
+  res1[,1]<-off[res1[,1]]
+  res1[,2]<-par[res1[,2]]
+  #two parent matches
+  res2[,1]<-off[res2[,1]]
+  res2[,2]<-par[res2[,2]]
+  res2[,3]<-par[res2[,3]]
+  #get the actual pairings from the genotypes/microsatellites files
+  actuals<-gty[,1:3]
+  actuals<-actuals[!is.na(actuals[,2]),]
+  #compare assigned to actuals
+  # merge them to compare
+  res1.assigns<-merge(res1,actuals,by.x=1,by.y="ID")
+  res2.assigns<-merge(res2,actuals,by.x=1,by.y="ID")
+  res1.match<-rowSums(apply(res1.assigns,1,function(matches){
+    if(length(grep("FEM",matches[2]))>0){ #if a female matched
+      mal<-0
+      fem<-ifelse(grep("FEM",matches[2],value = TRUE)==matches[3],yes=1,no=0)
+      fem.ass<-length(grep("FEM",matches[2]))
+      mal.ass<-0
+    }
+    if(length(grep("MAL",matches[2])) >0){ #if a male matched
+      mal<-ifelse(grep("MAL",matches[2],value = TRUE)==matches[4],yes=1,no=0)
+      fem<-0
+      fem.ass<-0
+      mal.ass<-length(grep("MAL",matches[2]))
+    }
+    match<-c(MomAssigned=fem.ass,DadAssigned=mal.ass,MomCorr=fem,DadCorr=mal)
+    names(match)<-c("MomAssigned","DadAssigned","MomCorr","DadCorr")
+    return(match)
+  }))
+  res2.match<-rowSums(apply(res2.assigns,1,function(matches){
+    assigns<-c(grep("FEM",matches[2:3],value = TRUE),grep("MAL",matches[2:3],value = TRUE))
+    match<-c(length(grep("FEM",matches[2:3])),length(grep("MAL",matches[2:3])),
+             ifelse(assigns == matches[4:5],yes = 1,no = 0))
+    names(match)<-c("MomAssigned","DadAssigned","MomCorr","DadCorr")
+    return(c(match))
+  }))
+  out<-data.frame(file=gfile,NumDadSingleAssigned=res1.match["DadAssigned"],
+                  SingleDadsCorrect=res1.match["DadCorr"],NumDadPairsAssigned=res2.match["DadAssigned"],
+                  DadPairsCorrect=res2.match["DadCorr"],
+                  NumMomSingleAssigned=res1.match["MomAssigned"],SingleMomsCorrect=res1.match["MomCorr"],
+                  NumMomPairsAssigned=res2.match["MomAssigned"],MomPairsCorrect=res2.match["MomCorr"],
+                  PropDadSinglesCorrect=res1.match["DadCorr"]/res1.match["DadAssigned"],
+                  PropDadPairsCorrect=res2.match["DadCorr"]/res2.match["DadAssigned"],
+                  PropMomSinglesCorrect=res1.match["MomCorr"]/res1.match["MomAssigned"],
+                  PropMomPairsCorrect=res2.match["MomCorr"]/res2.match["MomAssigned"])
+  return(out)
+}
+
+gty.famoz<-do.call(rbind,lapply(gty.files,famoz.summ))
+mst.famoz<-do.call(rbind,lapply(mst.files,famoz.summ,base.name="microsatellites",respar.base="ms_respar"))
+write.csv(rbind(gty.famoz,mst.famoz),"FaMoZ_summary.csv")
+```
+
 ### SNPPIT
 
 Output files are in directories for each `gty.files`.
