@@ -333,6 +333,8 @@ cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Femal
     }
     cnt<-cnt+1
   }
+  ids<-data.frame(IDnum=as.numeric(gty$ID),ID=gty$ID)
+
   tfam<-data.frame(gty$FamID,gty$ID,Dad=as.character(gty$Dad),Mom=as.character(gty$Mom),gty$sex,
                    stringsAsFactors = FALSE)
   tfam$Dad[is.na(tfam$Dad)]<--9
