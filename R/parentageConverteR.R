@@ -289,14 +289,14 @@ cervus2ped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Female
 #' @param sexes A labeled list with Males, Females, and Offspring elements all designating strings found in ID names that identify individuals as males, females and offspring
 #' @export
 cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Females="FEM",Offspring="OFF"),
-                      known.mom=NA,known.dad=NA){
+                      known.mom=NA,known.dad=NA,age.file=NA){
   if(substr(out.dir,nchar(out.dir),nchar(out.dir))!="/"){
     out.dir<-paste(out.dir,"/",sep="")
   }
   gty<-read.delim(file)
   end.snps<-ncol(gty)
   snps<-colnames(gty)[first.allele:end.snps]
-  gty$FamID<-0 #no family names
+  gty$FamID<-1 #no family names
   if(!is.na(known.mom)){ #then family names will come from moms
     gty$FamID[grep(sexes["Females"],gty[,known.mom])]<-paste("Fam",gsub(sexes["Females"],"",gty[grep(sexes["Females"],gty[,known.mom]),known.mom]),sep="")
     gty$FamID[grep(sexes["Females"],gty$ID)]<-paste("Fam",gsub(sexes["Females"],"",gty$ID[grep(sexes["Females"],gty$ID)]),sep="")
@@ -305,25 +305,14 @@ cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Femal
     gty$FamID[grep(sexes["Males"],gty[,known.dad])]<-paste("Fam",gsub(sexes["Males"],"",gty[grep(sexes["Males"],gty[,known.dad]),known.dad]),sep="")
     gty$FamID[grep(sexes["Males"],gty$ID)]<-paste("Fam",gsub(sexes["Males"],"",gty$ID[grep(sexes["Males"],gty$ID)]),sep="")
   }
-  gty$sex<--9
-  gty$sex[grep(sexes["Males"],gty$ID)]<-1
-  gty$sex[grep(sexes["Females"],gty$ID)]<-2
   tped.name<-paste(out.dir,gsub("_genotypes.txt",".tped",file),sep="")
   tfam.name<-paste(out.dir,gsub("_genotypes.txt",".tfam",file),sep="")
   gty[,snps][gty[,snps]==1]<-"A"
   gty[,snps][gty[,snps]==2]<-"T"
-  tped<-data.frame(cbind(Chr=1,snp=snp.names[seq(1,length(snps),2)],
+  tped<-data.frame(cbind(Chr=1,snp=snps[seq(1,length(snps),2)],
                    distance=seq(1,length(snps),2)/length(snps),bp=seq(1,length(snps),2),
                    matrix(as.character(NA),nrow=length(snps)/2,ncol=2*nrow(gty))),
                    stringsAsFactors = FALSE)
-  ## Tried to vectorize and failed
-  # m<-mapply(function(i,cnt,gty,tped){
-  #   mapply(function(ii,ind.cnt,gtyi,tpedcnt){
-  #     tpedcnt[,c(ind.cnt,ind.cnt+1)]<-gtyi[ii,]
-  #   },1:nrow(gty),seq(5,ncol(tped),2),
-  #   MoreArgs = list(gtyi=gty[,c(i,i+1)],tpedcnt=tped[cnt,]))
-  # },seq(first.allele,end.snps,2),seq(1:length(snps)/2),
-  #        MoreArgs=list(gty=gty,tped=tped))
   cnt<-1
   for(i in seq(first.allele,end.snps,2)){#loop through snps
     ind.cnt<-5 #where the first genotype goes
@@ -333,12 +322,25 @@ cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Femal
     }
     cnt<-cnt+1
   }
-  ids<-data.frame(IDnum=as.numeric(gty$ID),ID=gty$ID)
-
-  tfam<-data.frame(gty$FamID,gty$ID,Dad=as.character(gty$Dad),Mom=as.character(gty$Mom),gty$sex,
+  gty$sex<--9
+  gty$sex[grep(sexes["Males"],gty$ID)]<-1
+  gty$sex[grep(sexes["Females"],gty$ID)]<-2
+  tfam<-data.frame(FamID=gty$FamID,ID=as.character(gty$ID),Dad=as.character(gty$Dad),
+                   Mom=as.character(gty$Mom),gty$sex,
                    stringsAsFactors = FALSE)
-  tfam$Dad[is.na(tfam$Dad)]<--9
-  tfam$Mom[is.na(tfam$Mom)]<--9
+  ids<-data.frame(IDnum=as.numeric(gty$ID),ID=gty$ID)
+  for(i in 1:nrow(tfam)){
+    tfam[i,2]<-ids[ids[,2] %in% unlist(tfam[i,2]),1]
+    tfam[i,3]<-ifelse(is.na(tfam[i,3]), yes=-9,no=ids[ids[,2] %in% unlist(tfam[i,3]),1])
+    tfam[i,4]<-ifelse(is.na(tfam[i,4]), yes=-9,no=ids[ids[,2] %in% unlist(tfam[i,4]),1])
+  }
+  if(!is.na(age.file)){
+    age.name<-paste(out.dir,gsub("genotypes.txt","age.txt",file),sep="")
+    age<-tfam[,1:2]
+    age$age<-1
+    age$age[grep(sexes["Offspring"],gty$ID)]<-0
+    write.table(age,age.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep=" ")
+  }
   write.table(tped,tped.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep=" ")
   write.table(tfam,tfam.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep=" ")
   return(tped)

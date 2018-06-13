@@ -263,12 +263,11 @@ Clapper requires tfam and tped files plus option files, and I'm going to use def
 
 ```{r}
 tpeds<-lapply(gty.files,cervus2tped,out.dir="clapper/")
-lapply(gty.files,function(gfile){
-  
-})
+
 clapopt<-lapply(gty.files,function(file){
   File<-paste("clapper/",gsub("_genotypes.txt","",file),sep="")
   out.name<-paste("clapper/",gsub("genotypes","ClapperOptions",file),sep="")
+  agefile<-paste("clapper/",gsub("genotypes.txt","age.txt",file),sep="")
   getClapperOptions(out.name = out.name,File=File)
 })
 ```
@@ -602,28 +601,39 @@ kable(snppit.stats)
 ### COLONY
 
 ```{r}
-colony.summ<-function(gfile,replace_string="_genotypes.txt"){
-  dir<-paste("colony",gsub(replace_string,"",gfile),sep="/")
-  assigns<-read.csv(paste(dir,gsub(replace_string,".ParentPair",gfile),sep="/"))
-  actuals<-read.delim(gfile)[,1:3]
-  actuals<-actuals[!is.na(actuals[,2]),]
-  matches<-merge(assigns,actuals,by.x = "OffspringID",by.y="ID")
-  mom.ncorr<-nrow(matches[identical(as.character(matches$InferredMum),
-                                as.character(matches$Mom)),])
-  mom.nwrong<-nrow(matches[!identical(as.character(matches$InferredMum),
-                                      as.character(matches$Mom)),])
-  dad.ncorr<-nrow(matches[identical(as.character(matches$InferredDad),
-                                as.character(matches$Dad)),])
-  dad.nwrong<-nrow(matches[!identical(as.character(matches$InferredDad),
-                                      as.character(matches$Dad)),])
-  out<-data.frame(file=gfile,NumAssigned=nrow(matches),DadsCorrect=dad.ncorr,DadsWrong=dad.nwrong,
-                  PropDadsCorrect=as.numeric(dad.ncorr/nrow(matches)),
-                  PropDadsWrong=as.numeric(dad.nwrong/nrow(matches)),
-                  MomsCorrect=mom.ncorr,MomsWrong=mom.nwrong,
-                  PropMomsCorrect=as.numeric(mom.ncorr/nrow(matches)),
-                  PropMomsWrong=as.numeric(mom.nwrong/nrow(matches)))
+colony.summ<-function(gfile,dat.dir="colony",replace_string="_genotypes.txt"){
+  dir<-paste(dat.dir,gsub(replace_string,"",gfile),sep="/")
+  filename<-paste(dir,gsub(replace_string,".ParentPair",gfile),sep="/")
+  if(!file.exists(filename)){
+    out<-data.frame(file=gfile,NumAssigned=0,DadsCorrect=NA,DadsWrong=NA,
+                  PropDadsCorrect=NA,PropDadsWrong=NA,
+                  MomsCorrect=NA,MomsWrong=NA,
+                  PropMomsCorrect=NA,PropMomsWrong=NA)
+  } else{
+    assigns<-read.csv(filename)
+    actuals<-read.delim(gfile)[,1:3]
+    actuals<-actuals[!is.na(actuals[,2]),]
+    matches<-merge(assigns,actuals,by.x = "OffspringID",by.y="ID")
+    mom.ncorr<-nrow(matches[identical(as.character(matches$InferredMum),
+                                  as.character(matches$Mom)),])
+    mom.nwrong<-nrow(matches[!identical(as.character(matches$InferredMum),
+                                        as.character(matches$Mom)),])
+    dad.ncorr<-nrow(matches[identical(as.character(matches$InferredDad),
+                                  as.character(matches$Dad)),])
+    dad.nwrong<-nrow(matches[!identical(as.character(matches$InferredDad),
+                                        as.character(matches$Dad)),])
+    out<-data.frame(file=gfile,NumAssigned=nrow(matches),DadsCorrect=dad.ncorr,DadsWrong=dad.nwrong,
+                    PropDadsCorrect=as.numeric(dad.ncorr/nrow(matches)),
+                    PropDadsWrong=as.numeric(dad.nwrong/nrow(matches)),
+                    MomsCorrect=mom.ncorr,MomsWrong=mom.nwrong,
+                    PropMomsCorrect=as.numeric(mom.ncorr/nrow(matches)),
+                    PropMomsWrong=as.numeric(mom.nwrong/nrow(matches)))
+  }
   return(out)
 }
+
+colony<-do.call(rbind,lapply(gty.files,colony.summ,dat.dir="C:/ZSL/Colony"))
+colony.mst<-do.call(rbind,lapply(mst.files,colony.summ,dat.dir="C:/ZSL/Colony"))
 ```
 
 ### PARFEX
