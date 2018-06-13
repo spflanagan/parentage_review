@@ -261,22 +261,28 @@ cervus2coancestryP<-function(ids,sexes=c(Males="MAL",Females="FEM",Offspring="OF
 #' @param first.allele The location of the first genotype column
 #' @param sexes A labeled list with Males, Females, and Offspring elements all designating strings found in ID names that identify individuals as males, females and offspring
 #' @export
-cervus2ped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Females="FEM",Offspring="OFF")){
+cervus2ped<-function(gfile,out.dir="./",first.allele=4,sexes=c(Males="MAL",Females="FEM",Offspring="OFF")){
   if(substr(out.dir,nchar(out.dir),nchar(out.dir))!="/"){
     out.dir<-paste(out.dir,"/",sep="")
   }
-  gty<-read.delim(file)
+  gty<-read.delim(gfile,stringsAsFactors = FALSE)
   snp.names<-colnames(gty)[first.allele:ncol(gty)]
-  gty$FamID<-gty$ID
-  gty$sex<-NA
-  gty$sex[grep(sexes["Males"],gty$sex)]<-1
-  gty$sex[grep(sexes["Females"],gty$sex)]<-2
+  gty$FamID<-0
+  gty$sex<--9
+  gty$sex[grep(sexes["Males"],gty$ID)]<-1
+  gty$sex[grep(sexes["Females"],gty$ID)]<-2
   gty$Phenotype<--9
-  ped.name<-paste(out.dir,gsub("_genotypes.txt",".ped",file),sep="")
-  map.name<-paste(out.dir,gsub("_genotypes.txt",".map",file),sep="")
-  ped<-gty[,c("FamID","ID","Dad","Mom","sex","Phenotype",snp.names)]
-  map<-data.frame(Chr=0,snp=snp.names[seq(1,length(snp.names),2)],
-                  distance=0,bp=0)
+  ped.name<-paste(out.dir,gsub("_genotypes.txt",".ped",gfile),sep="")
+  map.name<-paste(out.dir,gsub("_genotypes.txt",".map",gfile),sep="")
+  ped<-data.frame(gty[,c("FamID","ID","Dad","Mom","sex","Phenotype",snp.names)],stringsAsFactors = FALSE)
+  map<-data.frame(Chr=1,snp=snp.names[seq(1,length(snp.names),2)],
+                  distance=seq(1,length(snp.names),2)/length(snp.names),bp=seq(1,length(snp.names),2))
+  ids<-data.frame(IDnum=as.numeric(as.factor(ped$ID)),ID=ped$ID)
+  for(i in 1:nrow(ped)){
+    ped[i,2]<-ids[ids[,2] %in% unlist(ped[i,2]),1]
+    ped[i,3]<-ifelse(is.na(ped[i,3]), yes=-9,no=ids[ids[,2] %in% unlist(ped[i,3]),1])
+    ped[i,4]<-ifelse(is.na(ped[i,4]), yes=-9,no=ids[ids[,2] %in% unlist(ped[i,4]),1])
+  }
   write.table(ped,ped.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep='\t')
   write.table(map,map.name,row.names = FALSE,col.names=FALSE,quote=FALSE,sep='\t')
   return(ped)
@@ -295,7 +301,7 @@ cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Femal
   }
   gty<-read.delim(file)
   end.snps<-ncol(gty)
-  snps<-colnames(gty)[first.allele:end.snps]
+  snps<-colnames(gty)[first.allele:ncol(gty)]
   gty$FamID<-1 #no family names
   if(!is.na(known.mom)){ #then family names will come from moms
     gty$FamID[grep(sexes["Females"],gty[,known.mom])]<-paste("Fam",gsub(sexes["Females"],"",gty[grep(sexes["Females"],gty[,known.mom]),known.mom]),sep="")
@@ -309,7 +315,7 @@ cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Femal
   tfam.name<-paste(out.dir,gsub("_genotypes.txt",".tfam",file),sep="")
   gty[,snps][gty[,snps]==1]<-"A"
   gty[,snps][gty[,snps]==2]<-"T"
-  tped<-data.frame(cbind(Chr=1,snp=snps[seq(1,length(snps),2)],
+  tped<-data.frame(cbind(Chr=1,snp=gsub("SNP(\\d+)\\w+","1_\\1",snps[seq(1,length(snps),2)]),
                    distance=seq(1,length(snps),2)/length(snps),bp=seq(1,length(snps),2),
                    matrix(as.character(NA),nrow=length(snps)/2,ncol=2*nrow(gty))),
                    stringsAsFactors = FALSE)
@@ -397,7 +403,7 @@ makePRIMUSextras<-function(gty,filename,out.dir="./",id.col=1,fid.col=NA,known.m
         sex.out<-gty[,sex.col]
       }
     }
-    sex.out<-data.frame(FID=fid,IID=gty[,id.col],SEX=sex.out)
+    sex.out<-data.frame(FID=fid,IID=as.numeric(as.factor(gty[,id.col])),SEX=sex.out)
     write.table(sex.out,paste(out.dir,filename,".sex",sep=""),sep=" ",
                 col.names = FALSE,row.names=FALSE,quote=FALSE)
   } #end of crating sex file
@@ -410,7 +416,7 @@ makePRIMUSextras<-function(gty,filename,out.dir="./",id.col=1,fid.col=NA,known.m
     } else{
       ages<-gty[,age.col]
     }
-    age.out<-data.frame(FID=fid,IID=gty[,id.col],SEX=ages)
+    age.out<-data.frame(FID=fid,IID=as.numeric(as.factor(gty[,id.col])),SEX=ages)
     write.table(age.out,paste(out.dir,filename,".age",sep=""),sep=" ",
                 col.names = FALSE,row.names=FALSE,quote=FALSE)
   }
@@ -419,7 +425,7 @@ makePRIMUSextras<-function(gty,filename,out.dir="./",id.col=1,fid.col=NA,known.m
     if(class(affection.col)=="character"){ #sanity check
       affection.col<-grep(affection.col,colnames(gty))
     }
-    write.table(data.frame(FID=fid,IID=gty[,id.col],AFFECTION_STATUS=gty[,affection.col]),
+    write.table(data.frame(FID=fid,IID=as.numeric(as.factor(gty[,id.col])),AFFECTION_STATUS=gty[,affection.col]),
                 paste(out.dir,filename,".affection",sep=""),sep=" ",
                 col.names = FALSE,row.names=FALSE,quote=FALSE)
   }
@@ -428,7 +434,7 @@ makePRIMUSextras<-function(gty,filename,out.dir="./",id.col=1,fid.col=NA,known.m
     if(class(trait.col)=="character"){ #sanity check
       trait.col<-grep(trait.col,colnames(gty))
     }
-    write.table(data.frame(FID=fid,IID=gty[,id.col],TRAIT=gty[,trait.col]),
+    write.table(data.frame(FID=fid,IID=as.numeric(as.factor(gty[,id.col])),TRAIT=gty[,trait.col]),
                 paste(out.dir,filename,".btrait",sep=""),sep=" ",
                 col.names = FALSE,row.names=FALSE,quote=FALSE)
   }

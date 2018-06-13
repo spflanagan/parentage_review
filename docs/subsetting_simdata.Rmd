@@ -262,13 +262,13 @@ invisible(lapply(gty.files,function(gty.file){
 Clapper requires tfam and tped files plus option files, and I'm going to use default settings. `cervus2tped` is slow because it relies on for-loops.
 
 ```{r}
-tpeds<-lapply(gty.files,cervus2tped,out.dir="clapper/")
+tpeds<-lapply(gty.files,cervus2tped,out.dir="clapper/",age.file=TRUE)
 
 clapopt<-lapply(gty.files,function(file){
   File<-paste("clapper/",gsub("_genotypes.txt","",file),sep="")
   out.name<-paste("clapper/",gsub("genotypes","ClapperOptions",file),sep="")
   agefile<-paste("clapper/",gsub("genotypes.txt","age.txt",file),sep="")
-  getClapperOptions(out.name = out.name,File=File)
+  getClapperOptions(out.name = out.name,File=File,ageFile = agefile)
 })
 ```
 
@@ -449,7 +449,6 @@ mb<-lapply(gty.files[6:length(gty.files)],function(gfile){
 ### CERVUS
 
 ```{r}
-## Took this from SCA/scripts/analyze_cervus_output.R -- needs to be generalized for use here.
 
 cervus_correct<-function(gty.files,gty.ext="genotypes.txt",csv.ext="paternity.csv"){
   prop<-do.call(rbind,lapply(gty.files,function(filename){
@@ -632,17 +631,19 @@ colony.summ<-function(gfile,dat.dir="colony",replace_string="_genotypes.txt"){
   return(out)
 }
 
-colony<-do.call(rbind,lapply(gty.files,colony.summ,dat.dir="C:/ZSL/Colony"))
-colony.mst<-do.call(rbind,lapply(mst.files,colony.summ,dat.dir="C:/ZSL/Colony"))
+colony<-do.call(rbind,lapply(gty.files,colony.summ,dat.dir="colony/"))
+colony.mst<-do.call(rbind,lapply(mst.files,colony.summ,dat.dir="colony/"))
+kable(colony)
+kable(colony.mst)
 ```
 
-### PARFEX
+### PedApp
 
 ```{r}
 
 ```
 
-### PedApp
+### PARFEX
 
 ```{r}
 
