@@ -2,9 +2,10 @@
 setwd("~/Projects/parentage_review/results")
 library(MasterBayes)
 source("../R/parentageConverteR.R")
-gty.files<-list.files(pattern="genotypes.txt")
+gty.files<-list.files(pattern="genotypes.txt")[-17]
 
-mb<-lapply(gty.files[6:length(gty.files)],function(gfile){
+for(i in 6:length(gty.files)){
+  gfile<-gty.files[i]
   print(gfile)
   G<-cervus2coancestryG(gfile)
   GdP<-GdataPed(G=G, categories=NULL)
@@ -19,4 +20,4 @@ mb<-lapply(gty.files[6:length(gty.files)],function(gfile){
   PdP<-PdataPed(formula=list(res1,res2),data=P,USsire=TRUE)
   model<-MCMCped(PdP=PdP, GdP=GdP, verbose=TRUE,burnin=50000,nitt=55000)
   saveRDS(model,paste("MasterBayes/",gsub("genotypes.txt","mod.RDS",gfile),sep=""))
-})
+}

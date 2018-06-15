@@ -268,7 +268,8 @@ clapopt<-lapply(gty.files,function(file){
   File<-paste("clapper/",gsub("_genotypes.txt","",file),sep="")
   out.name<-paste("clapper/",gsub("genotypes","ClapperOptions",file),sep="")
   agefile<-paste("clapper/",gsub("genotypes.txt","age.txt",file),sep="")
-  getClapperOptions(out.name = out.name,File=File,ageFile = agefile)
+  getClapperOptions(out.name = out.name,File=File,ageFile = agefile,
+                    back = 1)
 })
 ```
 

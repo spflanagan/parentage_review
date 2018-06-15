@@ -328,7 +328,7 @@ cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Femal
     }
     cnt<-cnt+1
   }
-  gty$sex<--9
+  gty$sex<-0
   gty$sex[grep(sexes["Males"],gty$ID)]<-1
   gty$sex[grep(sexes["Females"],gty$ID)]<-2
   tfam<-data.frame(FamID=gty$FamID,ID=as.character(gty$ID),Dad=as.character(gty$Dad),
@@ -337,8 +337,8 @@ cervus2tped<-function(file,out.dir="./",first.allele=4,sexes=c(Males="MAL",Femal
   ids<-data.frame(IDnum=as.numeric(gty$ID),ID=gty$ID)
   for(i in 1:nrow(tfam)){
     tfam[i,2]<-ids[ids[,2] %in% unlist(tfam[i,2]),1]
-    tfam[i,3]<-ifelse(is.na(tfam[i,3]), yes=-9,no=ids[ids[,2] %in% unlist(tfam[i,3]),1])
-    tfam[i,4]<-ifelse(is.na(tfam[i,4]), yes=-9,no=ids[ids[,2] %in% unlist(tfam[i,4]),1])
+    tfam[i,3]<-ifelse(is.na(tfam[i,3]), yes=0,no=ids[ids[,2] %in% unlist(tfam[i,3]),1])
+    tfam[i,4]<-ifelse(is.na(tfam[i,4]), yes=0,no=ids[ids[,2] %in% unlist(tfam[i,4]),1])
   }
   if(!is.na(age.file)){
     age.name<-paste(out.dir,gsub("genotypes.txt","age.txt",file),sep="")
