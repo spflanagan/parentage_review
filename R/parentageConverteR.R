@@ -666,6 +666,16 @@ cervus2snppit<-function(gty,filename,error.rates=0.01,first.allele=4,miss=0,
     suppressWarnings(write.table("OFFSPRING All Parents",filename,append = TRUE,row.names=FALSE,col.names = FALSE,quote=FALSE))
     suppressWarnings(write.table(output,filename,append = TRUE,row.names=FALSE,col.names = FALSE,quote=FALSE))
   }
-  
-  
+}
+
+#' Run lapply and skip any errors, returning NULL in their place
+#' @param X a vector (atomic or list) or an expression object. Other objects (including classed objects) will be coerced by base::as.list.
+#' @param FUN the function to be applied to each element of X: see 'Details'. In the case of functions like +, %*%, the function name must be backquoted or quoted.
+#' @param ... optional arguments to FUN
+#' @source https://stackoverflow.com/questions/40089885/r-allow-error-in-lapply
+#' @seealso lapply
+#' @export
+lapply_with_error <- function(X,FUN,...){
+  lapply(X, function(x, ...) tryCatch(FUN(x, ...),
+                                      error=function(e) NULL))
 }

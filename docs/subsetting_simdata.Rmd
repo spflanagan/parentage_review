@@ -443,7 +443,43 @@ mb<-lapply(gty.files[6:length(gty.files)],function(gfile){
 })
 
 ```
+```{r}
+mb.output<-list.files(path = "MasterBayes",full.names = TRUE)
+bayes_correct<-function(model){
+  print(model)
+  #read in the model
+  mb<-readRDS(model)
 
+  #get the most likely pedigree
+  ped<-modeP(mb$P, threshold=0)
+  plot(ped$prob) #plot
+  assigns<-ped$P
+  colnames(assigns)<-c("off","ass.mom","ass.dad")
+  
+  if(nrow(assigns)>0){
+    #get the actuals
+    gfile<-gsub("MasterBayes/(.*)_mod.RDS","\\1_genotypes.txt",model)
+    if(!gfile %in% gty.files){ print("ERROR: filename not in list of files") }
+    actuals<-read.delim(gfile)[,1:3]
+    actuals<-actuals[!is.na(actuals[,2]),] #only focus on offspring
+    assigned<-merge(assigns,actuals,by.x="off",by.y="ID")
+    ncorr<-nrow(assigned[identical(as.character(assigned$ass.dad),
+                                   as.character(assigned$Dad)),])
+    nwrong<-nrow(assigned[!identical(as.character(assigned$ass.dad),
+                                     as.character(assigned$Dad)),])
+    out<-data.frame(file=gfile,NumDadsAssigned=nrow(assigned),DadsCorrect=ncorr,DadsWrong=nwrong,
+                    PropAssigned=as.numeric(nrow(assigned)/nrow(assigned)),
+                    PropCorrect=as.numeric(ncorr/nrow(assigned)),
+                    PropWrong=as.numeric(nwrong/nrow(assigned)))
+  }else{
+    out<-data.frame(file=gfile,NumDadsAssigned=nrow(assigns),DadsCorrect=NA,DadsWrong=NA,
+                        PropAssigned=NA,PropCorrect=NA,PropWrong=NA)
+  }
+  return(out)
+}
+
+mb.summary<-do.call(rbind,lapply_with_error(mb.output,bayes_correct))
+```
 
 ## Analyzing output from stand-alone programs
 

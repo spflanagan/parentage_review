@@ -2,9 +2,11 @@
 setwd("~/Projects/parentage_review/results")
 library(MasterBayes)
 source("../R/parentageConverteR.R")
-gty.files<-list.files(pattern="genotypes.txt")[-17]
+gty.files<-c("parentsim_F100f4S5000_genotypes.txt","parentsim_F250f2S100_genotypes.txt",
+             "sample4offspring_genotypes.txt","sample500SNPs_genotypes.txt",
+             "sample50PCparents_genotypes.txt","sample50SNPs_genotypes.txt")
 
-for(i in 1:5){
+for(i in 1:length(gty.files)){
   gfile<-gty.files[i]
   print(gfile)
   G<-cervus2coancestryG(gfile)
